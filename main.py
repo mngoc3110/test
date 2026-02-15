@@ -206,13 +206,19 @@ def run_training(args: argparse.Namespace) -> None:
     # Check if dataset has video_list (standard VideoDataset)
     if hasattr(train_loader.dataset, 'video_list'):
         print(f"=> Calculating class distribution from video_list...")
+        # Get label_is_0_based flag from dataset if available
+        is_0_based = getattr(train_loader.dataset, 'label_is_0_based', False)
+        
         for record in train_loader.dataset.video_list:
-            # Labels in RAER/CAER annotations are typically 1-based (e.g., 1..8)
-            # VideoDataset.__getitem__ returns label-1.
-            # So we map record.label (1-based) to 0-based index.
-            label_idx = record.label - 1
+            # If 0-based, use label directly. If 1-based, subtract 1.
+            label_idx = record.label if is_0_based else record.label - 1
+            
             if 0 <= label_idx < len(cls_num_list):
                 cls_num_list[label_idx] += 1
+            else:
+                # Debug print for out of bound labels
+                # print(f"Warning: Label {record.label} (idx {label_idx}) out of range [0, {len(cls_num_list)-1}]")
+                pass
     else:
         # Fallback or warning if dataset structure is different
         print("=> Warning: Could not calculate class distribution directly from dataset. Using uniform distribution placeholder if needed.")
