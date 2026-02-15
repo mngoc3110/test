@@ -218,14 +218,16 @@ def run_training(args: argparse.Namespace) -> None:
             if 0 <= label_idx < len(cls_num_list):
                 cls_num_list[label_idx] += 1
             else:
-                # Debug print for out of bound labels
-                # print(f"Warning: Label {record.label} (idx {label_idx}) out of range [0, {len(cls_num_list)-1}]")
                 pass
+        
+        # FIX: Avoid divide by zero in LDAM if a class has 0 samples
+        for i in range(len(cls_num_list)):
+            if cls_num_list[i] == 0:
+                print(f"Warning: Class {i} has 0 samples. Setting count to 1 to avoid LDAM error.")
+                cls_num_list[i] = 1
     else:
         # Fallback or warning if dataset structure is different
         print("=> Warning: Could not calculate class distribution directly from dataset. Using uniform distribution placeholder if needed.")
-        # Attempt to infer from simple iteration if small, but likely too slow. 
-        # For now, just warn. LDAM might fail or perform poorly if this is zero.
         pass
     
     print(f"=> Class distribution (Training): {cls_num_list}")
