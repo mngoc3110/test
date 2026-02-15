@@ -206,7 +206,9 @@ class VideoDataset(data.Dataset):
             print(f"Warning: No frames found for video {record.path}, returning zeros.")
             dummy_shape = (self.num_segments * self.duration, 3, self.image_size, self.image_size)
             if is_video_file and 'cap' in locals(): cap.release()
-            return torch.zeros(dummy_shape), torch.zeros(dummy_shape), record.label - 1
+            # Fix: Use correct label logic for fallback
+            final_label = record.label if self.label_is_0_based else record.label - 1
+            return torch.zeros(dummy_shape), torch.zeros(dummy_shape), final_label
 
         # Clamp indices to be valid
         indices = np.clip(indices, 0, num_real_frames - 1)
