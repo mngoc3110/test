@@ -11,44 +11,46 @@ from torch.utils import data
 from numpy.random import randint
 from dataloader.video_transform import *
 
+# Custom Transform for List of Images (Group Transform)
+class GroupRandomGrayscale(object):
+    def __init__(self, p=0.1):
+        self.p = p
+
+    def __call__(self, img_group):
+        if random.random() < self.p:
+            # Convert to Grayscale (L) then back to RGB to keep 3 channels
+            return [img.convert('L').convert('RGB') for img in img_group]
+        return img_group
+
 class DAiSEERecord(object):
     def __init__(self, row, root_dir):
         self._data = row
         self._root_dir = root_dir
-        self._resolved_path = None # Cache for the actual path
-
-    @property
-    def clip_id(self):
-        # row[0] is the relative path from annotation file, e.g. "Train/110001/1100011002/frames" 
-        # or just "1100011002" depending on how we generated it.
-        # Let's assume the annotation file contains relative paths.
-        return self._data[0]
+        self._resolved_path = None
 
     @property
     def path(self):
         if self._resolved_path:
             return self._resolved_path
-            
-        # Strategy: The annotation file provides a relative path.
-        # We need to check if it exists relative to root_dir.
-        # If not, we might need to search for the clip ID.
         
-        rel_path = self._data[0]
-        full_path = os.path.join(self._root_dir, rel_path)
-        
+        # Determine if the path in _data[0] is absolute or relative
+        raw_path = self._data[0]
+        if os.path.isabs(raw_path):
+             full_path = raw_path
+        else:
+             full_path = os.path.join(self._root_dir, raw_path)
+
         if os.path.exists(full_path):
             self._resolved_path = full_path
             return full_path
             
-        # Fallback: If path is not found directly, maybe it's a video file missing extension?
-        # Or maybe the annotation path was "clean" but file has extension.
+        # Fallback for video extensions
         if not os.path.exists(full_path):
-             for ext in ['.avi', '.mp4', '.mov']:
+             for ext in ['.avi', '.mp4', '.mov', '.mkv']:
                  if os.path.exists(full_path + ext):
                      self._resolved_path = full_path + ext
                      return self._resolved_path
         
-        # If still not found, return the full_path anyway (dataloader will handle missing file)
         return full_path
 
     @property
@@ -72,28 +74,29 @@ class DAiSEEDataset(data.Dataset):
         self.crop_body = crop_body
         self.root_dir = root_dir
         
-        self.debug_samples_path = 'debug_samples'
+        self.debug_samples_path = 'debug_samples_daisee'
         os.makedirs(self.debug_samples_path, exist_ok=True)
         self._saved_samples = {i: 0 for i in range(num_classes)}
         
-        self._parse_list()
+        self.boxs = {}
+        self.body_boxes = {}
         
-        # We skip reading boxes for now as DAiSEE usually relies on full frame or specific crops
-        # But to keep compatibility, we init empty boxes if file fails
-        try:
-            with open(self.bounding_box_face, 'r') as f:
-                self.boxs = json.load(f)
-        except:
-            self.boxs = {}
-            
-        try:
-            if self.crop_body:
+        # Load bounding boxes if provided
+        if self.bounding_box_face and os.path.exists(self.bounding_box_face):
+            try:
+                with open(self.bounding_box_face, 'r') as f:
+                    self.boxs = json.load(f)
+            except Exception as e:
+                print(f"Warning: Failed to load face boxes from {self.bounding_box_face}: {e}")
+
+        if self.crop_body and self.bounding_box_body and os.path.exists(self.bounding_box_body):
+            try:
                 with open(self.bounding_box_body, 'r') as f:
                     self.body_boxes = json.load(f)
-            else:
-                self.body_boxes = {}
-        except:
-            self.body_boxes = {}
+            except Exception as e:
+                 print(f"Warning: Failed to load body boxes from {self.bounding_box_body}: {e}")
+
+        self._parse_list()
 
     def _cv2pil(self, im_cv):
         cv_img_rgb = cv2.cvtColor(im_cv, cv2.COLOR_BGR2RGB)
@@ -123,6 +126,9 @@ class DAiSEEDataset(data.Dataset):
 
     def _face_detect(self, img, box, margin, mode='face'):
         if box is None:
+            if mode == 'face':
+                # FALLBACK: Return original image instead of black image if no face detected
+                return img
             return img
         else:
             left, upper, right, lower = box
@@ -142,16 +148,22 @@ class DAiSEEDataset(data.Dataset):
 
     def _parse_list(self):
         self.video_list = []
-        with open(self.list_file, 'r') as f:
-            for line in f:
-                parts = line.strip().split(' ')
-                if len(parts) >= 3:
-                    # Handle paths with spaces if any
-                    path = ' '.join(parts[:-2])
-                    num_frames = parts[-2]
-                    label = parts[-1]
-                    self.video_list.append(DAiSEERecord([path, num_frames, label], self.root_dir))
-        
+        try:
+            with open(self.list_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line: continue
+                    parts = line.split(' ')
+                    # Expected format: path num_frames label
+                    # But path might contain spaces
+                    if len(parts) >= 3:
+                        path = ' '.join(parts[:-2])
+                        num_frames = parts[-2]
+                        label = parts[-1]
+                        self.video_list.append(DAiSEERecord([path, num_frames, label], self.root_dir))
+        except FileNotFoundError:
+            print(f"Error: List file not found: {self.list_file}")
+            
         print(f'DAiSEE {self.mode} samples: {len(self.video_list)}')
 
     def _get_train_indices(self, record):
@@ -182,7 +194,7 @@ class DAiSEEDataset(data.Dataset):
 
     def get(self, record, indices):
         path = record.path
-        is_video_file = os.path.isfile(path) and path.lower().endswith(('.avi', '.mp4', '.mov'))
+        is_video_file = os.path.isfile(path) and path.lower().endswith(('.avi', '.mp4', '.mov', '.mkv'))
         
         video_frames_path = []
         num_real_frames = 0
@@ -193,23 +205,29 @@ class DAiSEEDataset(data.Dataset):
             if cap.isOpened():
                 num_real_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             else:
-                print(f"Warning: Could not open video file {path}")
+                # print(f"Warning: Could not open video file {path}")
+                pass
         elif os.path.isdir(path):
             video_frames_path = glob.glob(os.path.join(path, '*'))
             video_frames_path.sort()
             num_real_frames = len(video_frames_path)
         
-        # If frame count mismatch or file not found
         if num_real_frames == 0:
-            # print(f"Warning: No frames/video found for {path}, returning zeros.")
             dummy_shape = (self.num_segments * self.duration, 3, self.image_size, self.image_size)
             if cap: cap.release()
-            return torch.zeros(dummy_shape), torch.zeros(dummy_shape), record.label - 1
+            return torch.zeros(dummy_shape), torch.zeros(dummy_shape), record.label # Label is usually 0-3 for DAiSEE
 
         indices = np.clip(indices, 0, num_real_frames - 1)
         
         images = []
         images_face = []
+        
+        # Determine video key for box lookup
+        # DAiSEE structure: ClipID.avi or ClipID/frames
+        # Key in JSON usually: ClipID
+        video_key = os.path.basename(path)
+        if '.' in video_key:
+            video_key = os.path.splitext(video_key)[0]
         
         for seg_ind in indices:
             p = int(seg_ind)
@@ -223,7 +241,6 @@ class DAiSEEDataset(data.Dataset):
                         img_cv_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                         img_pil = Image.fromarray(img_cv_rgb)
                 else:
-                    # Folder of frames
                     if p < len(video_frames_path):
                         try:
                             img_pil = Image.open(video_frames_path[p]).convert('RGB')
@@ -233,30 +250,40 @@ class DAiSEEDataset(data.Dataset):
                 if img_pil is None:
                     img_pil = Image.new('RGB', (self.image_size, self.image_size))
 
-                # DAiSEE specific: Center Crop if no bbox (Dummy box fallback)
-                # Most DAiSEE videos have the subject in the center.
-                # A 60-70% center crop helps remove background noise.
-                if self.bounding_box_face == "" or "dummy" in self.bounding_box_face:
-                     w, h = img_pil.size
-                     # Crop scale 0.7 seems reasonable for webcam footage
-                     crop_scale = 0.7 
-                     crop_w = w * crop_scale
-                     crop_h = h * crop_scale
-                     
-                     # Ensure we don't crop too small
-                     if crop_w < self.image_size: crop_w = w
-                     if crop_h < self.image_size: crop_h = h
-                     
-                     left = (w - crop_w) / 2
-                     top = (h - crop_h) / 2
-                     img_pil_face = img_pil.crop((left, top, left + crop_w, top + crop_h))
-                else:
-                     img_pil_face = self._face_detect(img_pil, None, margin=0, mode='face')
+                # Face Detection Strategy
+                box = None
+                frame_key = f"{p + 1}" # DAiSEE JSON usually uses 1-based indexing for frames or filename
+                # If JSON keys are just filenames "1.jpg", "2.jpg"
+                frame_key_alt = f"{p + 1}.jpg"
+                
+                if video_key in self.boxs:
+                    # Check different frame key formats
+                    if frame_key in self.boxs[video_key]:
+                        box = self.boxs[video_key][frame_key]
+                    elif frame_key_alt in self.boxs[video_key]:
+                        box = self.boxs[video_key][frame_key_alt]
+                
+                # Use 10 margin balanced crop
+                img_pil_face = self._face_detect(img_pil, box, margin=10, mode='face')
 
-                # Body stream uses the same image if no cropping
+                # Body Crop (Optional)
                 img_pil_body = img_pil
+                if self.crop_body:
+                    body_box = None
+                    if video_key in self.body_boxes:
+                        if frame_key in self.body_boxes[video_key]:
+                            body_box = self.body_boxes[video_key][frame_key]
+                        elif frame_key_alt in self.body_boxes[video_key]:
+                             body_box = self.body_boxes[video_key][frame_key_alt]
+                    
+                    if body_box:
+                         img_pil_body = self._face_detect(img_pil, body_box, margin=0, mode='body_crop_internal') # Reuse crop logic
+                         # Note: _face_detect doesn't implement 'body_crop_internal' specifically but crop logic is generic
+                         # Let's just use manual crop here for safety or update _face_detect
+                         left, upper, right, lower = body_box
+                         img_pil_body = img_pil.crop((left, upper, right, lower))
 
-                # Resize
+                # Resize Body
                 img_cv_body = self._pil2cv(img_pil_body)
                 img_cv_body, _ = self._resize_image(img_cv_body, self.image_size, self.image_size)
                 img_pil_body = self._cv2pil(img_cv_body)
@@ -270,19 +297,25 @@ class DAiSEEDataset(data.Dataset):
         if cap:
             cap.release()
 
-        images = self.transform(images)
-        images = torch.reshape(images, (-1, 3, self.image_size, self.image_size))
+        # Apply Transforms
+        process_data = self.transform(images) # (C*T, H, W)
+        process_data_face = self.transform(images_face) # (C*T, H, W)
 
-        images_face = self.transform(images_face)
-        images_face = torch.reshape(images_face, (-1, 3, self.image_size, self.image_size))
+        # Reshape to (T, C, H, W)
+        process_data = process_data.view(-1, 3, self.image_size, self.image_size)
+        process_data_face = process_data_face.view(-1, 3, self.image_size, self.image_size)
         
-        return images_face, images, record.label - 1
+        return process_data_face, process_data, record.label # DAiSEE labels are 0,1,2,3
 
     def __len__(self):
         return len(self.video_list)
 
 def daisee_train_data_loader(root_dir, list_file, num_segments, duration, image_size, bounding_box_face, bounding_box_body, crop_body=False, num_classes=4):
     train_transforms = torchvision.transforms.Compose([
+        torchvision.transforms.RandomApply([
+            torchvision.transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.2)
+        ], p=0.8),
+        GroupRandomGrayscale(p=0.2),
         RandomRotation(4),
         GroupResize(image_size),
         GroupRandomHorizontalFlip(),
