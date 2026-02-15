@@ -73,6 +73,7 @@ class DAiSEEDataset(data.Dataset):
         self.bounding_box_body = bounding_box_body
         self.crop_body = crop_body
         self.root_dir = root_dir
+        self.label_is_0_based = True # DAiSEE Engagement is 0, 1, 2, 3
         
         self.debug_samples_path = 'debug_samples_daisee'
         os.makedirs(self.debug_samples_path, exist_ok=True)
