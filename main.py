@@ -7,8 +7,9 @@ import shutil
 import time
 
 # Suppress OpenCV and FFmpeg warnings
-os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
-os.environ["OPENCV_FFMPEG_DEBUG_LOG_LEVEL"] = "0"
+os.environ["OPENCV_LOG_LEVEL"] = "OFF"
+os.environ["OPENCV_FFMPEG_LOG_LEVEL"] = "-8" # Quiet mode
+os.environ["OPENCV_VIDEOIO_DEBUG"] = "0"
 
 import matplotlib
 import numpy as np

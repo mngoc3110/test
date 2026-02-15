@@ -115,12 +115,23 @@ class VideoDataset(data.Dataset):
             upper = int(upper)
             right = int(right)
             lower = int(lower)
+            
+            # Apply margin
             left = max(0, left - margin)
             upper = max(0, upper - margin)
             right = min(img.width, right + margin)
             lower = min(img.height, lower + margin)
+            
+            # Safety check: Ensure valid crop coordinates
+            if right <= left or lower <= upper:
+                # print(f"Warning: Invalid crop coordinates (L={left}, U={upper}, R={right}, D={lower}) for image size {img.size}. Using full image.")
+                return img
+
             if mode == 'face':
-                img = img.crop((left, upper, right, lower))
+                try:
+                    img = img.crop((left, upper, right, lower))
+                except ValueError:
+                    return img
                 return img
             elif mode == 'body':
                 occluded_image = img.copy()
