@@ -47,34 +47,52 @@ def fix_annotations():
             continue
             
         print(f"Processing {csv_file}...")
-        df = pd.read_csv(csv_path)
+        try:
+            df = pd.read_csv(csv_path)
+            # DEBUG: Print columns and first few rows
+            print(f"  Columns: {df.columns.tolist()}")
+            print(f"  Head:\n{df.head(3)}")
+        except Exception as e:
+            print(f"Error reading CSV: {e}")
+            continue
         
         found_count = 0
         missing_count = 0
         
+        # Determine Label Column
+        # DAiSEE labels: ClipID, Boredom, Engagement, Confusion, Frustration
+        # Clean column names (strip spaces)
+        df.columns = df.columns.str.strip()
+        
+        label_col = 'Engagement'
+        if label_col not in df.columns:
+            # Fallback by index (2) if name doesn't match
+            if len(df.columns) > 2:
+                label_col = df.columns[2]
+                print(f"  'Engagement' column not found. Using index 2: '{label_col}'")
+            else:
+                print(f"  Error: Cannot determine label column. Columns: {df.columns}")
+                continue
+
         with open(txt_path, 'w') as f:
             for _, row in df.iterrows():
                 clip_id = str(row['ClipID']).strip()
-                # Xử lý trường hợp ClipID trong CSV có đuôi .avi
                 if clip_id.endswith('.avi'):
                     clip_id = clip_id[:-4]
                 
-                # Tìm đường dẫn thực tế
                 if clip_id in video_index:
                     real_path = video_index[clip_id]
                     
-                    # Lấy nhãn Engagement
-                    if 'Engagement' in df.columns:
-                        label = int(row['Engagement'])
-                    else:
-                        label = int(row.iloc[2])
-                    
-                    # Ghi file: path 300 label
+                    try:
+                        label = int(row[label_col])
+                    except ValueError:
+                        # Handle potential float or string issues
+                        continue
+
                     f.write(f"{real_path} 300 {label}\n")
                     found_count += 1
                 else:
                     missing_count += 1
-                    # print(f"Missing video for ClipID: {clip_id}")
         
         print(f"-> Saved {txt_path}: Found {found_count}, Missing {missing_count}")
 
