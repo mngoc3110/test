@@ -187,26 +187,37 @@ class VideoDataset(data.Dataset):
 
     def get(self, record, indices):
         # Check if record.path is a directory (frames) or a file (video)
-        if os.path.isdir(record.path):
-            video_frames_path = glob.glob(os.path.join(record.path, '*'))
+        path = record.path
+        if os.path.isdir(path):
+            video_frames_path = glob.glob(os.path.join(path, '*'))
             video_frames_path.sort()
             num_real_frames = len(video_frames_path)
             is_video_file = False
         else:
             # Assume it's a video file
             is_video_file = True
-            cap = cv2.VideoCapture(record.path)
-            num_real_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            # Don't release cap yet, we need it to read frames
-            if not cap.isOpened():
-                 print(f"Warning: Could not open video file {record.path}, returning zeros.")
-                 num_real_frames = 0
+            if not os.path.exists(path):
+                print(f"Error: Video file not found at {path}")
+                num_real_frames = 0
+            else:
+                # Use CAP_FFMPEG for better stability on Linux/Kaggle
+                cap = cv2.VideoCapture(path, cv2.CAP_FFMPEG)
+                num_real_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                
+                if not cap.isOpened() or num_real_frames <= 0:
+                     # Retry without FFMPEG flag just in case
+                     cap.release()
+                     cap = cv2.VideoCapture(path)
+                     num_real_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                     
+                if not cap.isOpened():
+                     print(f"Warning: Could not open video file {path}")
+                     num_real_frames = 0
 
-        if num_real_frames == 0:
-            print(f"Warning: No frames found for video {record.path}, returning zeros.")
+        if num_real_frames <= 0:
+            # print(f"Warning: No frames found for video {path}, returning zeros.")
             dummy_shape = (self.num_segments * self.duration, 3, self.image_size, self.image_size)
-            if is_video_file and 'cap' in locals(): cap.release()
-            # Fix: Use correct label logic for fallback
+            if is_video_file and 'cap' in locals() and cap.isOpened(): cap.release()
             final_label = record.label if self.label_is_0_based else record.label - 1
             return torch.zeros(dummy_shape), torch.zeros(dummy_shape), final_label
 
