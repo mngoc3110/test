@@ -50,15 +50,25 @@ class GenerateModel(nn.Module):
             embedding = clip_model.token_embedding(self.tokenized_hand_crafted_prompts).type(self.dtype)
         self.register_buffer("hand_crafted_prompt_embeddings", embedding)
 
+        # Initialize Temporal Model based on args.temporal_pooling
+        temporal_pool_type = getattr(args, 'temporal_pooling', 'attn_pool')
+        print(f"=> Using Temporal Pooling: {temporal_pool_type}")
+        
+        if temporal_pool_type == 'cls_token':
+            TemporalModelClass = Temporal_Transformer_Cls
+        elif temporal_pool_type == 'mean':
+            TemporalModelClass = Temporal_Transformer_Mean
+        else: # Default to attn_pool
+            TemporalModelClass = Temporal_Transformer_AttnPool
 
-        self.temporal_net = Temporal_Transformer_AttnPool(num_patches=16,
+        self.temporal_net = TemporalModelClass(num_patches=16,
                                                      input_dim=512,
                                                      depth=args.temporal_layers,
                                                      heads=8,
                                                      mlp_dim=1024,
                                                      dim_head=64)
         
-        self.temporal_net_body = Temporal_Transformer_AttnPool(num_patches=16,
+        self.temporal_net_body = TemporalModelClass(num_patches=16,
                                                      input_dim=512,
                                                      depth=args.temporal_layers,
                                                      heads=8,
