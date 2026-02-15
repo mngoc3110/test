@@ -4,6 +4,12 @@
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
+# --- KAGGLE PATHS ---
+DATASET_ROOT="/kaggle/input/caer-video-dataset/CAER"
+ANNOTATION_ROOT="/kaggle/input/caer-bounding-box"
+# Cập nhật đường dẫn này theo tên Dataset bạn đã upload lên Kaggle
+BOUNDING_BOX_ROOT="/kaggle/input/caer-bounding-box" 
+
 python main.py \
   --mode train \
   --exper-name Train-CAER-Full-Config \
@@ -25,13 +31,13 @@ python main.py \
   --image-size 224 \
   --seed 42 \
   --print-freq 50 \
-  --root-dir ./dataset/CAER \
-  --train-annotation ./dataset/CAER/train.txt \
-  --val-annotation ./dataset/CAER/test.txt \
-  --test-annotation ./dataset/CAER/test.txt \
+  --root-dir "$DATASET_ROOT" \
+  --train-annotation "$ANNOTATION_ROOT/train_caer.txt" \
+  --val-annotation "$ANNOTATION_ROOT/test_caer.txt" \
+  --test-annotation "$ANNOTATION_ROOT/test_caer.txt" \
   --clip-path ViT-B/16 \
-  --bounding-box-face ./dataset/CAER/bounding_box/face_boxes.json \
-  --bounding-box-body ./dataset/CAER/bounding_box/body_boxes.json \
+  --bounding-box-face "$BOUNDING_BOX_ROOT/face_detection_result.json" \
+  --bounding-box-body "$BOUNDING_BOX_ROOT/body_detection_result.json" \
   --text-type prompt_ensemble \
   --contexts-number 8 \
   --class-token-position end \

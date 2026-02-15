@@ -155,12 +155,18 @@ def build_dataloaders(args: argparse.Namespace) -> Tuple[torch.utils.data.DataLo
         )
     else:
         print(f"Loading train data (Standard) for {args.dataset}...")
+        
+        # Determine if labels are 0-based (e.g. CAER) or 1-based (e.g. RAER)
+        # Assuming CAER uses 0-based labels from generate_caer_annotations.py
+        label_is_0_based = (args.dataset == "CAER")
+        
         train_data = train_data_loader(
             root_dir=args.root_dir, list_file=train_annotation_file_path, num_segments=args.num_segments,
             duration=args.duration, image_size=args.image_size,dataset_name=args.dataset,
             bounding_box_face=args.bounding_box_face,bounding_box_body=args.bounding_box_body,
             crop_body=args.crop_body,
-            num_classes=num_classes
+            num_classes=num_classes,
+            label_is_0_based=label_is_0_based
         )
         
         print(f"Loading validation data (Standard) for {args.dataset}...")
@@ -169,7 +175,8 @@ def build_dataloaders(args: argparse.Namespace) -> Tuple[torch.utils.data.DataLo
             duration=args.duration, image_size=args.image_size,
             bounding_box_face=args.bounding_box_face,bounding_box_body=args.bounding_box_body,
             crop_body=args.crop_body,
-            num_classes=num_classes
+            num_classes=num_classes,
+            label_is_0_based=label_is_0_based
         )
 
         print(f"Loading test data (Standard) for {args.dataset}...")
@@ -178,7 +185,8 @@ def build_dataloaders(args: argparse.Namespace) -> Tuple[torch.utils.data.DataLo
             duration=args.duration, image_size=args.image_size,
             bounding_box_face=args.bounding_box_face,bounding_box_body=args.bounding_box_body,
             crop_body=args.crop_body,
-            num_classes=num_classes
+            num_classes=num_classes,
+            label_is_0_based=label_is_0_based
         )
 
     print(f"Total number of training images: {len(train_data)}")

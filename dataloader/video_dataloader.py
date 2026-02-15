@@ -40,7 +40,7 @@ class VideoRecord(object):
         return int(self._data[2])
 
 class VideoDataset(data.Dataset):
-    def __init__(self, list_file, num_segments, duration, mode, transform, image_size,bounding_box_face,bounding_box_body, crop_body=False, root_dir="", num_classes=8):
+    def __init__(self, list_file, num_segments, duration, mode, transform, image_size,bounding_box_face,bounding_box_body, crop_body=False, root_dir="", num_classes=8, label_is_0_based=False):
         self.list_file = list_file
         self.duration = duration
         self.num_segments = num_segments
@@ -51,6 +51,7 @@ class VideoDataset(data.Dataset):
         self.bounding_box_body = bounding_box_body
         self.crop_body = crop_body
         self.root_dir = root_dir
+        self.label_is_0_based = label_is_0_based
         
         # Debugging: Initialize for saving sample images
         self.debug_samples_path = 'debug_samples'
@@ -334,13 +335,15 @@ class VideoDataset(data.Dataset):
         process_data = process_data.view(-1, 3, self.image_size, self.image_size)
         process_data_face = process_data_face.view(-1, 3, self.image_size, self.image_size)
         
-        return process_data_face, process_data, record.label - 1
+        # Adjust label based on whether it's 0-based or 1-based
+        final_label = record.label if self.label_is_0_based else record.label - 1
+        return process_data_face, process_data, final_label
 
     def __len__(self):
         return len(self.video_list)
 
 
-def train_data_loader(root_dir, list_file, num_segments, duration, image_size,dataset_name,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8):
+def train_data_loader(root_dir, list_file, num_segments, duration, image_size,dataset_name,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8, label_is_0_based=False):
     if dataset_name == 'DAiSEE':
         print(f"=> Using DAiSEE smart dataloader...")
         return daisee_train_data_loader(root_dir, list_file, num_segments, duration, image_size, 
@@ -374,12 +377,13 @@ def train_data_loader(root_dir, list_file, num_segments, duration, image_size,da
                               bounding_box_face=bounding_box_face,
                               bounding_box_body=bounding_box_body,
                               crop_body=crop_body,
-                              num_classes=num_classes
+                              num_classes=num_classes,
+                              label_is_0_based=label_is_0_based
                               )
     return train_data
 
 
-def test_data_loader(root_dir, list_file, num_segments, duration, image_size,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8):
+def test_data_loader(root_dir, list_file, num_segments, duration, image_size,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8, label_is_0_based=False):
     # We don't get dataset_name here usually, but if we did we could dispatch.
     # However, test_data_loader signature in main.py call might not pass dataset_name?
     # Let's check main.py call site.
@@ -400,6 +404,7 @@ def test_data_loader(root_dir, list_file, num_segments, duration, image_size,bou
                              bounding_box_face=bounding_box_face,
                              bounding_box_body=bounding_box_body,
                              crop_body=crop_body,
-                             num_classes=num_classes
+                             num_classes=num_classes,
+                             label_is_0_based=label_is_0_based
                              )
     return test_data
