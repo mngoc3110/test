@@ -1,6 +1,6 @@
 #!/bin/bash
-# DAiSEE Training Script - Engagement Only
-# Configuration: Attention Pooling | With MI/DC Loss | LDAM | Weighted Sampler | No Mixup
+# DAiSEE Training Script - Optimized for WAR (Accuracy)
+# Configuration: Attention Pooling | LDAM | Natural Distribution | Fast Training
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
@@ -10,22 +10,22 @@ ANNOTATION_ROOT="./dataset/DAiSEE/annotations"
 
 python main.py \
   --mode train \
-  --exper-name Train-DAiSEE-Engage-AttnPool \
+  --exper-name Train-DAiSEE-WAR-Optimized \
   --dataset DAiSEE \
   --gpu 0 \
   --epochs 20 \
-  --batch-size 4 \
+  --batch-size 8 \
   --optimizer AdamW \
-  --lr 2e-5 \
-  --lr-image-encoder 1e-6 \
-  --lr-prompt-learner 3e-4 \
+  --lr 1e-4 \
+  --lr-image-encoder 1e-5 \
+  --lr-prompt-learner 5e-4 \
   --lr-adapter 1e-4 \
   --weight-decay 0.005 \
   --milestones 10 15 \
   --gamma 0.1 \
   --temporal-layers 1 \
   --temporal-pooling attn_pool \
-  --num-segments 16 \
+  --num-segments 8 \
   --duration 1 \
   --image-size 224 \
   --seed 42 \
@@ -51,6 +51,5 @@ python main.py \
   --mi-warmup 5 \
   --mi-ramp 10 \
   --use-amp \
-  --use-weighted-sampler \
   --grad-clip 1.0 \
   --mixup-alpha 0.0

@@ -375,22 +375,30 @@ class_descriptor_daisee = [
 prompt_ensemble_daisee = [
     [ # Very Low (0)
         "A video of a student with very low engagement.",
-        "A student looking away or sleeping.",
-        "A completely disengaged student."
+        "A student looking away, sleeping, or completely uninterested.",
+        "A completely disengaged student with no focus on the lesson.",
+        "A student who is zoning out or doing something else entirely.",
+        "A photo of a student showing boredom and lack of attention."
     ],
     [ # Low (1)
         "A video of a student with low engagement.",
-        "A student looking distracted or bored.",
-        "A student showing little interest in the lesson."
+        "A student looking distracted, yawning, or fidgeting.",
+        "A student showing little interest and frequent loss of focus.",
+        "A student struggling to pay attention to the lecture.",
+        "A photo of a student who seems bored or tired."
     ],
     [ # High (2)
         "A video of a student with high engagement.",
-        "A student looking at the screen attentively.",
-        "A student following the lecture."
+        "A student looking at the screen and paying attention.",
+        "A student following the lecture with a steady gaze.",
+        "A focused student listening to the teacher.",
+        "A photo of a student showing interest in the material."
     ],
     [ # Very High (3)
         "A video of a highly engaged student.",
-        "A student leaning forward and taking notes.",
-        "A student completely absorbed in learning."
+        "A student leaning forward, taking notes, or reacting to the content.",
+        "A student completely absorbed and immersed in learning.",
+        "A very focused student showing enthusiasm and active participation.",
+        "A photo of a student who is deeply concentrating on the lesson."
     ]
 ]
