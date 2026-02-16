@@ -324,16 +324,19 @@ def run_training(args: argparse.Namespace) -> None:
         trainer.scheduler.step()
 
         # Save checkpoint
-        is_best = val_uar > best_val_uar
+        if args.dataset == 'RAER':
+            is_best = val_uar > best_val_uar
+        else:
+            # For CAER and others, prioritize WAR (Accuracy)
+            is_best = val_war > best_val_war
+
         best_val_uar = max(val_uar, best_val_uar)
         best_val_war = max(val_war, best_val_war)
-        best_train_uar = max(train_uar, best_train_uar)
-        best_train_war = max(train_war, best_train_war)
 
         save_checkpoint({
             'epoch': epoch + 1,
             'state_dict': trainer.model.state_dict(),
-            'best_acc': best_val_uar, 
+            'best_acc': best_val_uar if args.dataset == 'RAER' else best_val_war, 
             'optimizer': trainer.optimizer.state_dict(),
             'recorder': recorder
         }, is_best, checkpoint_path, best_checkpoint_path)

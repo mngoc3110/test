@@ -9,9 +9,9 @@ OUTPUT_DIR = './dataset/DAiSEE/annotations'
 
 # Map tên file CSV sang file TXT
 file_map = {
-    'TrainLabels.csv': 'train.txt',
-    'ValidationLabels.csv': 'validation.txt',
-    'TestLabels.csv': 'test.txt'
+    'TrainLabels_Balanced.csv': 'train.txt',
+    'ValidationLabels_Balanced.csv': 'validation.txt',
+    'TestLabels_Balanced.csv': 'test.txt'
 }
 
 def build_video_index(root_dir):

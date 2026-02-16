@@ -40,7 +40,7 @@ class VideoRecord(object):
         return int(self._data[2])
 
 class VideoDataset(data.Dataset):
-    def __init__(self, list_file, num_segments, duration, mode, transform, image_size,bounding_box_face,bounding_box_body, crop_body=False, root_dir="", num_classes=8, label_is_0_based=False):
+    def __init__(self, list_file, num_segments, duration, mode, transform, image_size,bounding_box_face,bounding_box_body, crop_body=False, root_dir="", num_classes=8, label_is_0_based=False, max_samples_per_class=None):
         self.list_file = list_file
         self.duration = duration
         self.num_segments = num_segments
@@ -52,6 +52,7 @@ class VideoDataset(data.Dataset):
         self.crop_body = crop_body
         self.root_dir = root_dir
         self.label_is_0_based = label_is_0_based
+        self.max_samples_per_class = max_samples_per_class
         
         # Debugging: Initialize for saving sample images
         self.debug_samples_path = 'debug_samples'
@@ -64,17 +65,62 @@ class VideoDataset(data.Dataset):
         if self.crop_body: # Only read body boxes if cropping is enabled
             self._read_body_boxes()
 
+    def _read_sample(self):
+        full_list = []
+        with open(self.list_file, 'r') as f:
+            for line in f:
+                parts = line.strip().split(' ')
+                if len(parts) > 3:
+                    # Path contains spaces, join all parts except the last two
+                    path = ' '.join(parts[:-2])
+                    num_frames = parts[-2]
+                    label = parts[-1]
+                    full_list.append([path, num_frames, label])
+                else:
+                    full_list.append(parts)
+        
+        if self.max_samples_per_class is not None and self.mode == 'train':
+            print(f"=> Subsampling dataset: Max {self.max_samples_per_class} samples per class.")
+            # Group samples by class
+            class_dict = {}
+            for item in full_list:
+                label = int(item[-1])
+                if label not in class_dict:
+                    class_dict[label] = []
+                class_dict[label].append(item)
+            
+            # Sample and merge
+            self.sample_list = []
+            # Keep consistent results with a fixed seed
+            random.seed(42)
+            for label in sorted(class_dict.keys()):
+                samples = class_dict[label]
+                random.shuffle(samples)
+                self.sample_list.extend(samples[:self.max_samples_per_class])
+                print(f"   Class {label}: {len(samples)} -> {min(len(samples), self.max_samples_per_class)}")
+        else:
+            self.sample_list = full_list
+
     def _read_boxs(self):
-        with open(self.bounding_box_face, 'r') as f:
-            self.boxs = json.load(f)
+        self.boxs = {}
+        if self.bounding_box_face and os.path.exists(self.bounding_box_face):
+            try:
+                with open(self.bounding_box_face, 'r') as f:
+                    self.boxs = json.load(f)
+            except Exception as e:
+                print(f"Warning: Failed to load face boxes from {self.bounding_box_face}: {e}")
+        else:
+            # print(f"Warning: Face bounding box file not found at {self.bounding_box_face}. Using full frames.")
+            pass
 
-
-    
     def _read_body_boxes(self):
-        if self.bounding_box_body:
-            with open(self.bounding_box_body, 'r') as f:
-                self.body_boxes = json.load(f)
-
+        self.body_boxes = {}
+        if self.crop_body and self.bounding_box_body and os.path.exists(self.bounding_box_body):
+            try:
+                with open(self.bounding_box_body, 'r') as f:
+                    self.body_boxes = json.load(f)
+            except Exception as e:
+                print(f"Warning: Failed to load body boxes from {self.bounding_box_body}: {e}")
 
     def _cv2pil(self,im_cv):
         cv_img_rgb = cv2.cvtColor(im_cv, cv2.COLOR_BGR2RGB)
@@ -131,6 +177,7 @@ class VideoDataset(data.Dataset):
                 try:
                     img = img.crop((left, upper, right, lower))
                 except ValueError:
+                    # In case crop fails for any other reason
                     return img
                 return img
             elif mode == 'body':
@@ -138,24 +185,6 @@ class VideoDataset(data.Dataset):
                 draw = ImageDraw.Draw(occluded_image)
                 draw.rectangle([left, upper, right, lower], fill=(0, 0, 0))
                 return occluded_image
-    
-    def _read_sample(self):
-        # tmp = [x.strip().split(' ') for x in open(self.list_file)]
-        # self.sample_list = [item for item in tmp]
-        
-        self.sample_list = []
-        with open(self.list_file, 'r') as f:
-            for line in f:
-                parts = line.strip().split(' ')
-                if len(parts) > 3:
-                    # Path contains spaces, join all parts except the last two
-                    path = ' '.join(parts[:-2])
-                    num_frames = parts[-2]
-                    label = parts[-1]
-                    self.sample_list.append([path, num_frames, label])
-                else:
-                    self.sample_list.append(parts)
-
 
     def _parse_list(self):
         # 
@@ -373,6 +402,9 @@ def train_data_loader(root_dir, list_file, num_segments, duration, image_size,da
         return daisee_train_data_loader(root_dir, list_file, num_segments, duration, image_size, 
                                         bounding_box_face, bounding_box_body, crop_body, num_classes)
         
+    # Auto-limit samples for CAER if needed
+    max_samples = None if dataset_name == "CAER" else None
+
     if dataset_name == "RAER" or dataset_name == "CAER":
          train_transforms = torchvision.transforms.Compose([
             # Apply ColorJitter from video_transform (works on list of images)
@@ -402,7 +434,8 @@ def train_data_loader(root_dir, list_file, num_segments, duration, image_size,da
                               bounding_box_body=bounding_box_body,
                               crop_body=crop_body,
                               num_classes=num_classes,
-                              label_is_0_based=label_is_0_based
+                              label_is_0_based=label_is_0_based,
+                              max_samples_per_class=max_samples
                               )
     return train_data
 

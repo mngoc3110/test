@@ -1,18 +1,17 @@
 #!/bin/bash
-# CAER Training Script - Exact Replication of RAER Configuration
-# Loss: LDAM | Sampler: Weighted | Mixup: 0.0 | Adapter: Learned | Prompt: Tuning (CoOp)
+# CAER Local Training Script - Optimized for WAR (Accuracy) using Advanced Pipeline
+# Loss: LDAM (Stronger than CE) | Sampler: None (Natural distribution for WAR) | Prompt: Tuning (CoOp)
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# --- KAGGLE PATHS ---
-DATASET_ROOT="/kaggle/input/caer-video-dataset/CAER"
-ANNOTATION_ROOT="/kaggle/input/caer-bounding-box"
-# Cập nhật đường dẫn này theo tên Dataset bạn đã upload lên Kaggle
-BOUNDING_BOX_ROOT="/kaggle/input/caer-bounding-box" 
+# --- LOCAL PATHS ---
+DATASET_ROOT="./dataset/CAER"
+ANNOTATION_ROOT="./dataset/CAER/annotations"
+BOUNDING_BOX_ROOT="./dataset/CAER/bounding_box"
 
 python main.py \
   --mode train \
-  --exper-name Train-CAER-Full-Config \
+  --exper-name Train-CAER-WAR-Advanced \
   --dataset CAER \
   --gpu 0 \
   --epochs 20 \
@@ -32,12 +31,12 @@ python main.py \
   --seed 42 \
   --print-freq 50 \
   --root-dir "$DATASET_ROOT" \
-  --train-annotation "$ANNOTATION_ROOT/train_caer.txt" \
-  --val-annotation "$ANNOTATION_ROOT/test_caer.txt" \
-  --test-annotation "$ANNOTATION_ROOT/test_caer.txt" \
+  --train-annotation "$ANNOTATION_ROOT/train.txt" \
+  --val-annotation "$ANNOTATION_ROOT/test.txt" \
+  --test-annotation "$ANNOTATION_ROOT/test.txt" \
   --clip-path ViT-B/16 \
-  --bounding-box-face "$BOUNDING_BOX_ROOT/face_detection_result.json" \
-  --bounding-box-body "$BOUNDING_BOX_ROOT/body_detection_result.json" \
+  --bounding-box-face "$BOUNDING_BOX_ROOT/face.json" \
+  --bounding-box-body "$BOUNDING_BOX_ROOT/body.json" \
   --text-type prompt_ensemble \
   --contexts-number 8 \
   --class-token-position end \
@@ -51,7 +50,6 @@ python main.py \
   --dc-warmup 5 \
   --lambda_mi 0.1 \
   --use-amp \
-  --use-weighted-sampler \
   --crop-body \
   --grad-clip 1.0 \
   --mixup-alpha 0.0

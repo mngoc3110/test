@@ -306,38 +306,52 @@ class_descriptor_caer = [
 prompt_ensemble_caer = [
     [ # Anger
         "A photo of a person showing anger.",
-        "A face with furrowed brows and a glare.",
-        "An angry facial expression."
+        "A face with furrowed brows, a glare, and tightened lips.",
+        "An angry facial expression with intense eyes.",
+        "A person looking furious and upset.",
+        "A photo of someone expressing rage or annoyance."
     ],
     [ # Disgust
         "A photo of a person showing disgust.",
-        "A face with a wrinkled nose.",
-        "A disgusted facial expression."
+        "A face with a wrinkled nose and raised upper lip.",
+        "A disgusted facial expression as if smelling something bad.",
+        "A person looking repulsed or sickened.",
+        "A photo of someone expressing strong aversion."
     ],
     [ # Fear
         "A photo of a person showing fear.",
-        "A face with wide eyes and a terrified look.",
-        "A fearful facial expression."
+        "A face with wide eyes, raised eyebrows, and open mouth.",
+        "A fearful facial expression with a pale look.",
+        "A person looking terrified or scared.",
+        "A photo of someone reacting to a threat or danger."
     ],
     [ # Happy
         "A photo of a person showing happiness.",
-        "A smiling face with joy.",
-        "A happy facial expression."
+        "A smiling face with raised cheeks and bright eyes.",
+        "A happy facial expression with a genuine smile.",
+        "A person looking joyful, cheerful, and content.",
+        "A photo of someone laughing or feeling great."
     ],
     [ # Neutral
         "A photo of a person showing a neutral expression.",
-        "A calm face with no strong emotion.",
-        "A neutral facial expression."
+        "A calm face with no strong emotion and relaxed muscles.",
+        "A neutral facial expression with a steady gaze.",
+        "A person looking indifferent or poker-faced.",
+        "A photo of someone with a blank or resting face."
     ],
     [ # Sad
         "A photo of a person showing sadness.",
-        "A face with a frown and sorrowful eyes.",
-        "A sad facial expression."
+        "A face with a frown, drooping eyelids, and down-turned lips.",
+        "A sad facial expression with a tearful look.",
+        "A person looking sorrowful, depressed, or unhappy.",
+        "A photo of someone crying or feeling grief."
     ],
     [ # Surprise
         "A photo of a person showing surprise.",
-        "A face with an open mouth and wide eyes.",
-        "A surprised facial expression."
+        "A face with an open mouth, wide eyes, and raised brows.",
+        "A surprised facial expression with a shocked look.",
+        "A person looking astonished or amazed.",
+        "A photo of someone reacting to something unexpected."
     ]
 ]
 
