@@ -15,7 +15,7 @@ python main.py \
   --dataset CAER \
   --gpu 0 \
   --epochs 20 \
-  --batch-size 4 \
+  --batch-size 8 \
   --optimizer AdamW \
   --lr 2e-5 \
   --lr-image-encoder 1e-6 \
@@ -25,7 +25,7 @@ python main.py \
   --milestones 10 15 \
   --gamma 0.1 \
   --temporal-layers 1 \
-  --num-segments 16 \
+  --num-segments 8 \
   --duration 1 \
   --image-size 224 \
   --seed 42 \
