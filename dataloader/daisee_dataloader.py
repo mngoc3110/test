@@ -324,9 +324,8 @@ class DAiSEEDataset(data.Dataset):
 
 def daisee_train_data_loader(root_dir, list_file, num_segments, duration, image_size, bounding_box_face, bounding_box_body, crop_body=False, num_classes=4):
     train_transforms = torchvision.transforms.Compose([
-        torchvision.transforms.RandomApply([
-            torchvision.transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.2)
-        ], p=0.8),
+        # Use custom ColorJitter from video_transform which handles list of images
+        ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.2),
         GroupRandomGrayscale(p=0.2),
         RandomRotation(4),
         GroupResize(image_size),
