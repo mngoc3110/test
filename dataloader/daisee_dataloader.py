@@ -73,7 +73,9 @@ class DAiSEEDataset(data.Dataset):
         self.bounding_box_body = bounding_box_body
         self.crop_body = crop_body
         self.root_dir = root_dir
-        self.label_is_0_based = True # DAiSEE Engagement is 0, 1, 2, 3
+        
+        # ASSUMPTION: Kaggle DAiSEE labels are 1-based (1,2,3,4) -> Need to subtract 1 to get (0,1,2,3)
+        self.label_is_0_based = False 
         
         self.debug_samples_path = 'debug_samples_daisee'
         os.makedirs(self.debug_samples_path, exist_ok=True)
@@ -98,6 +100,8 @@ class DAiSEEDataset(data.Dataset):
                  print(f"Warning: Failed to load body boxes from {self.bounding_box_body}: {e}")
 
         self._parse_list()
+
+    # ... (Keep existing methods: _cv2pil, _pil2cv, _resize_image, _face_detect) ...
 
     def _cv2pil(self, im_cv):
         cv_img_rgb = cv2.cvtColor(im_cv, cv2.COLOR_BGR2RGB)
@@ -149,7 +153,7 @@ class DAiSEEDataset(data.Dataset):
 
     def _parse_list(self):
         self.video_list = []
-        invalid_count = 0
+        all_labels = []
         try:
             with open(self.list_file, 'r') as f:
                 lines = f.readlines()
@@ -159,34 +163,62 @@ class DAiSEEDataset(data.Dataset):
                 for line in lines:
                     line = line.strip()
                     if not line: continue
-                    # Split by any whitespace (handles tabs and spaces)
                     parts = line.split() 
                     
                     if len(parts) >= 3:
-                        # Path is everything except the last two elements
                         path = ' '.join(parts[:-2])
                         num_frames = parts[-2]
-                        label = int(parts[-1]) # Convert label to int immediately
-                        
-                        # Handle invalid labels (e.g., label 4 in 4-class dataset)
-                        if label >= 4: # Hardcoded for DAiSEE 4 classes
-                            label = 3
-                            invalid_count += 1
-                        
-                        # Add simple check to ensure path isn't empty
-                        if path:
-                            self.video_list.append(DAiSEERecord([path, num_frames, str(label)], self.root_dir))
-                    else:
-                        pass 
-                        
+                        try:
+                            label = int(parts[-1])
+                            all_labels.append(label)
+                            # Store temporarily, we will normalize later
+                            if path:
+                                self.video_list.append([path, num_frames, label])
+                        except ValueError:
+                            print(f"Warning: Invalid label format in line: {line}")
         except FileNotFoundError:
             print(f"Error: List file not found: {self.list_file}")
             
-        if invalid_count > 0:
-            print(f"WARNING: Fixed {invalid_count} samples with invalid labels (>=4) by clamping to 3.")
+        # AUTO-DETECT LABEL RANGE
+        if all_labels:
+            min_label = min(all_labels)
+            max_label = max(all_labels)
+            print(f"DEBUG: Label range detected: [{min_label}, {max_label}]")
+            
+            if min_label >= 1 and max_label <= 4:
+                print("=> Detected 1-based labels (1-4). Will convert to 0-based (0-3).")
+                self.label_is_0_based = False
+            elif min_label >= 0 and max_label <= 3:
+                print("=> Detected 0-based labels (0-3). Keeping as is.")
+                self.label_is_0_based = True
+            else:
+                print(f"WARNING: Unusual label range! Min={min_label}, Max={max_label}. Defaulting to 0-based check.")
+                # Fallback heuristic: if max > 3, assume 1-based or offset
+                if max_label > 3:
+                     self.label_is_0_based = False
+                else:
+                     self.label_is_0_based = True
+
+            # NORMALIZE LABELS IN VIDEO LIST
+            # We convert everything to DAiSEERecord with standard 0-3 labels to avoid confusion later
+            normalized_list = []
+            for item in self.video_list:
+                path, num, raw_lbl = item
+                final_lbl = raw_lbl if self.label_is_0_based else raw_lbl - 1
+                
+                # Clamp to be safe
+                final_lbl = max(0, min(final_lbl, 3))
+                
+                normalized_list.append(DAiSEERecord([path, num, str(final_lbl)], self.root_dir))
+            
+            self.video_list = normalized_list
+            # IMPORTANT: Now that we normalized the list to 0-based, we must tell main.py 
+            # that this dataset is 0-based so it doesn't subtract 1 again!
+            self.label_is_0_based = True 
             
         print(f'DAiSEE {self.mode} samples: {len(self.video_list)}')
 
+    # ... (Keep existing methods: _get_train_indices, _get_test_indices) ...
     def _get_train_indices(self, record):
         average_duration = (record.num_frames - self.duration + 1) // self.num_segments
         if average_duration > 0:
@@ -236,7 +268,10 @@ class DAiSEEDataset(data.Dataset):
         if num_real_frames == 0:
             dummy_shape = (self.num_segments * self.duration, 3, self.image_size, self.image_size)
             if cap: cap.release()
-            return torch.zeros(dummy_shape), torch.zeros(dummy_shape), record.label # Label is usually 0-3 for DAiSEE
+            # Handle label adjustment here if needed, but VideoDataset usually handles it.
+            # BUT: DAiSEEDataset is used directly. We need to respect label_is_0_based logic.
+            final_label = record.label if self.label_is_0_based else record.label - 1
+            return torch.zeros(dummy_shape), torch.zeros(dummy_shape), final_label
 
         indices = np.clip(indices, 0, num_real_frames - 1)
         
@@ -244,8 +279,6 @@ class DAiSEEDataset(data.Dataset):
         images_face = []
         
         # Determine video key for box lookup
-        # DAiSEE structure: ClipID.avi or ClipID/frames
-        # Key in JSON usually: ClipID
         video_key = os.path.basename(path)
         if '.' in video_key:
             video_key = os.path.splitext(video_key)[0]
@@ -273,18 +306,15 @@ class DAiSEEDataset(data.Dataset):
 
                 # Face Detection Strategy
                 box = None
-                frame_key = f"{p + 1}" # DAiSEE JSON usually uses 1-based indexing for frames or filename
-                # If JSON keys are just filenames "1.jpg", "2.jpg"
+                frame_key = f"{p + 1}"
                 frame_key_alt = f"{p + 1}.jpg"
                 
                 if video_key in self.boxs:
-                    # Check different frame key formats
                     if frame_key in self.boxs[video_key]:
                         box = self.boxs[video_key][frame_key]
                     elif frame_key_alt in self.boxs[video_key]:
                         box = self.boxs[video_key][frame_key_alt]
                 
-                # Use 10 margin balanced crop
                 img_pil_face = self._face_detect(img_pil, box, margin=10, mode='face')
 
                 # Body Crop (Optional)
@@ -298,9 +328,6 @@ class DAiSEEDataset(data.Dataset):
                              body_box = self.body_boxes[video_key][frame_key_alt]
                     
                     if body_box:
-                         img_pil_body = self._face_detect(img_pil, body_box, margin=0, mode='body_crop_internal') # Reuse crop logic
-                         # Note: _face_detect doesn't implement 'body_crop_internal' specifically but crop logic is generic
-                         # Let's just use manual crop here for safety or update _face_detect
                          left, upper, right, lower = body_box
                          img_pil_body = img_pil.crop((left, upper, right, lower))
 
@@ -319,14 +346,15 @@ class DAiSEEDataset(data.Dataset):
             cap.release()
 
         # Apply Transforms
-        process_data = self.transform(images) # (C*T, H, W)
-        process_data_face = self.transform(images_face) # (C*T, H, W)
+        process_data = self.transform(images) 
+        process_data_face = self.transform(images_face) 
 
-        # Reshape to (T, C, H, W)
         process_data = process_data.view(-1, 3, self.image_size, self.image_size)
         process_data_face = process_data_face.view(-1, 3, self.image_size, self.image_size)
         
-        return process_data_face, process_data, record.label # DAiSEE labels are 0,1,2,3
+        # CRITICAL FIX: Apply label adjustment based on label_is_0_based flag
+        final_label = record.label if self.label_is_0_based else record.label - 1
+        return process_data_face, process_data, final_label
 
     def __len__(self):
         return len(self.video_list)
