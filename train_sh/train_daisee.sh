@@ -1,26 +1,37 @@
 #!/bin/bash
 # DAiSEE Training Script - Optimized for WAR (Accuracy)
-# Configuration: Attention Pooling | LDAM | Natural Distribution | Fast Training
+# Configuration: Attention Pooling | LDAM (High Margin) | Weighted Sampler (Essential) | Stable LR
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# --- LOCAL PATHS ---
-DATASET_ROOT="./dataset/DAiSEE/DataSet"
-ANNOTATION_ROOT="./dataset/DAiSEE/annotations"
+# --- PATH CONFIGURATION ---
+# Detect environment and set paths
+if [ -d "/kaggle/input" ]; then
+    echo "=> Detected Kaggle Environment."
+    DATASET_ROOT="/kaggle/input/datasets/mngochocsupham/daisee/DAiSEE_data/DataSet"
+    ANNOTATION_ROOT="/kaggle/input/datasets/mngochocsupham/daisee/DAiSEE_data"
+else
+    echo "=> Detected Local Environment (Mac/Linux)."
+    DATASET_ROOT="./dataset/DAiSEE/DataSet"
+    ANNOTATION_ROOT="./dataset/DAiSEE"
+fi
+
+echo "Using DATASET_ROOT: $DATASET_ROOT"
+echo "Using ANNOTATION_ROOT: $ANNOTATION_ROOT"
 
 python main.py \
   --mode train \
-  --exper-name Train-DAiSEE-WAR-Optimized \
+  --exper-name Train-DAiSEE-WAR-Balanced \
   --dataset DAiSEE \
   --gpu 0 \
   --epochs 20 \
   --batch-size 8 \
   --optimizer AdamW \
-  --lr 1e-4 \
-  --lr-image-encoder 1e-5 \
-  --lr-prompt-learner 5e-4 \
+  --lr 3e-5 \
+  --lr-image-encoder 2e-6 \
+  --lr-prompt-learner 3e-4 \
   --lr-adapter 1e-4 \
-  --weight-decay 0.005 \
+  --weight-decay 0.01 \
   --milestones 10 15 \
   --gamma 0.1 \
   --temporal-layers 1 \
@@ -30,10 +41,10 @@ python main.py \
   --image-size 224 \
   --seed 42 \
   --print-freq 50 \
-  --root-dir "${DATASET_ROOT}" \
-  --train-annotation "${ANNOTATION_ROOT}/train.txt" \
-  --val-annotation "${ANNOTATION_ROOT}/validation.txt" \
-  --test-annotation "${ANNOTATION_ROOT}/test.txt" \
+  --root-dir "$DATASET_ROOT" \
+  --train-annotation "$ANNOTATION_ROOT/daisee_train.txt" \
+  --val-annotation "$ANNOTATION_ROOT/daisee_val.txt" \
+  --test-annotation "$ANNOTATION_ROOT/daisee_test.txt" \
   --bounding-box-face "" \
   --clip-path "ViT-B/16" \
   --text-type prompt_ensemble \
@@ -43,7 +54,7 @@ python main.py \
   --load_and_tune_prompt_learner True \
   --loss-type ldam \
   --ldam-s 30.0 \
-  --ldam-max-m 0.5 \
+  --ldam-max-m 0.35 \
   --lambda_dc 0.1 \
   --dc-warmup 5 \
   --dc-ramp 10 \
@@ -51,5 +62,6 @@ python main.py \
   --mi-warmup 5 \
   --mi-ramp 10 \
   --use-amp \
+  --use-weighted-sampler \
   --grad-clip 1.0 \
   --mixup-alpha 0.0

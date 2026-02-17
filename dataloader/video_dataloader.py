@@ -405,6 +405,10 @@ def train_data_loader(root_dir, list_file, num_segments, duration, image_size,da
     # Auto-limit samples for CAER if needed
     max_samples = None if dataset_name == "CAER" else None
 
+    # CAER labels are 0-based (0-6)
+    if dataset_name == "CAER":
+        label_is_0_based = True
+
     if dataset_name == "RAER" or dataset_name == "CAER":
          train_transforms = torchvision.transforms.Compose([
             # Apply ColorJitter from video_transform (works on list of images)
@@ -441,12 +445,14 @@ def train_data_loader(root_dir, list_file, num_segments, duration, image_size,da
 
 
 def test_data_loader(root_dir, list_file, num_segments, duration, image_size,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8, label_is_0_based=False):
-    # We don't get dataset_name here usually, but if we did we could dispatch.
-    # However, test_data_loader signature in main.py call might not pass dataset_name?
-    # Let's check main.py call site.
-    # But wait, main.py doesn't pass dataset_name to test_data_loader in standard calls usually.
-    # Let's see if we can infer it or if we should add it.
-    pass 
+    # CAER detection logic based on path if needed, but usually passed from main.
+    # However, main.py calls test_data_loader without dataset_name.
+    # We can infer from path or just rely on default. 
+    # But wait, if we use CAER, we MUST set label_is_0_based=True here too if main.py doesn't.
+    
+    # Simple heuristic: Check if "CAER" is in the root_dir or list_file path
+    if "CAER" in root_dir or "CAER" in list_file:
+        label_is_0_based = True
     
     test_transform = torchvision.transforms.Compose([GroupResize(image_size),
                                                      Stack(),
