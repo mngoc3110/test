@@ -154,6 +154,7 @@ class DAiSEEDataset(data.Dataset):
     def _parse_list(self):
         self.video_list = []
         all_labels = []
+        invalid_count = 0
         try:
             with open(self.list_file, 'r') as f:
                 lines = f.readlines()
@@ -166,14 +167,34 @@ class DAiSEEDataset(data.Dataset):
                     parts = line.split() 
                     
                     if len(parts) >= 3:
-                        path = ' '.join(parts[:-2])
+                        raw_path = ' '.join(parts[:-2])
                         num_frames = parts[-2]
+                        
+                        # SMART PATH CORRECTION
+                        # If raw_path contains keywords like Train/Test/Validation, extract the relative path
+                        # regardless of what prefix it has (e.g. /content/drive/.../Train/...)
+                        keywords = ['/Train/', '/Test/', '/Validation/']
+                        clean_path = raw_path
+                        for kw in keywords:
+                            if kw in raw_path:
+                                # Split and take the part starting with the keyword (without the leading /)
+                                # e.g. /data/DAiSEE/Train/Clip1 -> Train/Clip1
+                                clean_path = raw_path.split(kw, 1)[1]
+                                clean_path = kw.strip('/') + '/' + clean_path
+                                break
+                        
+                        # If the path starts with the keyword but no leading slash (e.g. Train/Clip1)
+                        # clean_path remains as is, which is correct.
+                        
                         try:
                             label = int(parts[-1])
                             all_labels.append(label)
-                            # Store temporarily, we will normalize later
-                            if path:
-                                self.video_list.append([path, num_frames, label])
+                            
+                            # Store with clean path logic handled by DAiSEERecord or just pass clean path
+                            # We pass clean_path to DAiSEERecord, but we need to ensure DAiSEERecord uses root_dir
+                            # effectively. Let's pass the relative path.
+                            if clean_path:
+                                self.video_list.append([clean_path, num_frames, label])
                         except ValueError:
                             print(f"Warning: Invalid label format in line: {line}")
         except FileNotFoundError:
@@ -193,27 +214,22 @@ class DAiSEEDataset(data.Dataset):
                 self.label_is_0_based = True
             else:
                 print(f"WARNING: Unusual label range! Min={min_label}, Max={max_label}. Defaulting to 0-based check.")
-                # Fallback heuristic: if max > 3, assume 1-based or offset
                 if max_label > 3:
                      self.label_is_0_based = False
                 else:
                      self.label_is_0_based = True
 
             # NORMALIZE LABELS IN VIDEO LIST
-            # We convert everything to DAiSEERecord with standard 0-3 labels to avoid confusion later
             normalized_list = []
             for item in self.video_list:
                 path, num, raw_lbl = item
                 final_lbl = raw_lbl if self.label_is_0_based else raw_lbl - 1
-                
-                # Clamp to be safe
                 final_lbl = max(0, min(final_lbl, 3))
                 
+                # Here we pass the CLEAN relative path. DAiSEERecord will join it with self.root_dir
                 normalized_list.append(DAiSEERecord([path, num, str(final_lbl)], self.root_dir))
             
             self.video_list = normalized_list
-            # IMPORTANT: Now that we normalized the list to 0-based, we must tell main.py 
-            # that this dataset is 0-based so it doesn't subtract 1 again!
             self.label_is_0_based = True 
             
         print(f'DAiSEE {self.mode} samples: {len(self.video_list)}')

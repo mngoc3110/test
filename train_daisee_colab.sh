@@ -8,21 +8,21 @@
 echo "=> Installing dependencies..."
 pip install ftfy regex tqdm -q
 
-# 2. Path Configuration (Relative to project root)
+# 2. Path Configuration
 # Consistent with your project structure: dataset/DAiSEE/...
 DATASET_ROOT="./dataset/DAiSEE/DataSet"
-ANNOTATION_ROOT="./dataset/DAiSEE"
+# Pointing to the correct annotations folder you just listed
+ANNOTATION_ROOT="./dataset/DAiSEE/annotations"
 TRAIN_LIST="$ANNOTATION_ROOT/daisee_train_full.txt"
 
 # 3. Automatic Data Merging (Train + Val -> Full Train)
 echo "=> Merging training and validation sets..."
-# Using your specific filenames: daisee_train.txt and daisee_val.txt
-if [ -f "$ANNOTATION_ROOT/daisee_train.txt" ] && [ -f "$ANNOTATION_ROOT/daisee_val.txt" ]; then
-    cat "$ANNOTATION_ROOT/daisee_train.txt" "$ANNOTATION_ROOT/daisee_val.txt" > "$TRAIN_LIST"
+if [ -f "$ANNOTATION_ROOT/train.txt" ] && [ -f "$ANNOTATION_ROOT/validation.txt" ]; then
+    cat "$ANNOTATION_ROOT/train.txt" "$ANNOTATION_ROOT/validation.txt" > "$TRAIN_LIST"
     echo "   Successfully created $TRAIN_LIST"
     echo "   Total samples in merged list: $(wc -l < "$TRAIN_LIST")"
 else
-    echo "   Error: Could not find daisee_train.txt or daisee_val.txt in $ANNOTATION_ROOT"
+    echo "   Error: Could not find train.txt or validation.txt in $ANNOTATION_ROOT"
     ls -F "$ANNOTATION_ROOT"
     exit 1
 fi
@@ -55,8 +55,8 @@ python main.py \
   --print-freq 50 \
   --root-dir "$DATASET_ROOT" \
   --train-annotation "$TRAIN_LIST" \
-  --val-annotation "$ANNOTATION_ROOT/daisee_test.txt" \
-  --test-annotation "$ANNOTATION_ROOT/daisee_test.txt" \
+  --val-annotation "$ANNOTATION_ROOT/test.txt" \
+  --test-annotation "$ANNOTATION_ROOT/test.txt" \
   --bounding-box-face "" \
   --clip-path "ViT-B/16" \
   --text-type prompt_ensemble \
@@ -72,4 +72,5 @@ python main.py \
   --use-amp \
   --grad-clip 1.0 \
   --mixup-alpha 0.2
+
 
