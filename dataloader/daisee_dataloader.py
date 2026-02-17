@@ -149,6 +149,7 @@ class DAiSEEDataset(data.Dataset):
 
     def _parse_list(self):
         self.video_list = []
+        invalid_count = 0
         try:
             with open(self.list_file, 'r') as f:
                 lines = f.readlines()
@@ -165,16 +166,24 @@ class DAiSEEDataset(data.Dataset):
                         # Path is everything except the last two elements
                         path = ' '.join(parts[:-2])
                         num_frames = parts[-2]
-                        label = parts[-1]
+                        label = int(parts[-1]) # Convert label to int immediately
+                        
+                        # Handle invalid labels (e.g., label 4 in 4-class dataset)
+                        if label >= 4: # Hardcoded for DAiSEE 4 classes
+                            label = 3
+                            invalid_count += 1
                         
                         # Add simple check to ensure path isn't empty
                         if path:
-                            self.video_list.append(DAiSEERecord([path, num_frames, label], self.root_dir))
+                            self.video_list.append(DAiSEERecord([path, num_frames, str(label)], self.root_dir))
                     else:
-                        pass # print(f"Warning: Skipping invalid line: {line}")
+                        pass 
                         
         except FileNotFoundError:
             print(f"Error: List file not found: {self.list_file}")
+            
+        if invalid_count > 0:
+            print(f"WARNING: Fixed {invalid_count} samples with invalid labels (>=4) by clamping to 3.")
             
         print(f'DAiSEE {self.mode} samples: {len(self.video_list)}')
 
