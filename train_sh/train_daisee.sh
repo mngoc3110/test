@@ -1,30 +1,39 @@
 #!/bin/bash
-# DAiSEE Training Script - RAER-like Configuration for Benchmarking
-# Strategy: Full Data | LDAM Loss | Weighted Sampler | 16 Frames | Prompt Tuning
+# DAiSEE Training Script - SOTA Configuration (Aiming for 70% WAR)
+# Strategy: Full Data (Train+Val) | LDAM Loss (RAER-like) | Weighted Sampler | 16 Frames
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # --- PATH CONFIGURATION ---
+# Detect environment and set paths
 if [ -d "/kaggle/input" ]; then
     echo "=> Detected Kaggle Environment."
     DATASET_ROOT="/kaggle/input/datasets/mngochocsupham/daisee/DAiSEE_data/DataSet"
     ANNOTATION_ROOT="/kaggle/input/datasets/mngochocsupham/daisee/DAiSEE_data"
-    # Create Full Train list (Train + Val)
+    # Merge files in writable /kaggle/working
     cat "$ANNOTATION_ROOT/daisee_train.txt" "$ANNOTATION_ROOT/daisee_val.txt" > daisee_train_full.txt
     TRAIN_LIST="daisee_train_full.txt"
+    VAL_LIST="$ANNOTATION_ROOT/daisee_test.txt"
+    TEST_LIST="$ANNOTATION_ROOT/daisee_test.txt"
 else
-    echo "=> Detected Local Environment."
+    echo "=> Detected Local or Colab Environment."
+    # Use relative paths consistent with project structure
     DATASET_ROOT="./dataset/DAiSEE/DataSet"
     ANNOTATION_ROOT="./dataset/DAiSEE"
-    cat "$ANNOTATION_ROOT/daisee_train.txt" "$ANNOTATION_ROOT/daisee_val.txt" > dataset/DAiSEE/daisee_train_full.txt
+    # Merge files
+    cat "$ANNOTATION_ROOT/daisee_train.txt" "$ANNOTATION_ROOT/daisee_val.txt" > "$ANNOTATION_ROOT/daisee_train_full.txt"
     TRAIN_LIST="$ANNOTATION_ROOT/daisee_train_full.txt"
+    VAL_LIST="$ANNOTATION_ROOT/daisee_test.txt"
+    TEST_LIST="$ANNOTATION_ROOT/daisee_test.txt"
 fi
 
-echo "Using Full Training List: $TRAIN_LIST"
+echo "DATASET_ROOT: $DATASET_ROOT"
+echo "ANNOTATION_ROOT: $ANNOTATION_ROOT"
+echo "TRAIN_LIST: $TRAIN_LIST"
 
 python main.py \
   --mode train \
-  --exper-name Train-DAiSEE-RAER-Pipeline \
+  --exper-name Train-DAiSEE-SOTA-Benchmarking \
   --dataset DAiSEE \
   --gpu 0 \
   --epochs 20 \
@@ -46,8 +55,8 @@ python main.py \
   --print-freq 50 \
   --root-dir "$DATASET_ROOT" \
   --train-annotation "$TRAIN_LIST" \
-  --val-annotation "$ANNOTATION_ROOT/daisee_test.txt" \
-  --test-annotation "$ANNOTATION_ROOT/daisee_test.txt" \
+  --val-annotation "$VAL_LIST" \
+  --test-annotation "$TEST_LIST" \
   --bounding-box-face "" \
   --clip-path "ViT-B/16" \
   --text-type prompt_ensemble \
@@ -59,8 +68,8 @@ python main.py \
   --ldam-s 30.0 \
   --ldam-max-m 0.35 \
   --lambda_dc 0.1 \
+  --mi-warmup 5 \
   --dc-warmup 5 \
-  --dc-ramp 10 \
   --lambda_mi 0.1 \
   --mi-warmup 5 \
   --mi-ramp 10 \
