@@ -210,6 +210,9 @@ def run_training(args: argparse.Namespace) -> None:
         print(f"=> Calculating class distribution from video_list...")
         # Get label_is_0_based flag from dataset if available
         is_0_based = getattr(train_loader.dataset, 'label_is_0_based', False)
+        print(f"DEBUG: is_0_based={is_0_based}")
+        
+        invalid_labels = {}
         
         for record in train_loader.dataset.video_list:
             # If 0-based, use label directly. If 1-based, subtract 1.
@@ -218,7 +221,15 @@ def run_training(args: argparse.Namespace) -> None:
             if 0 <= label_idx < len(cls_num_list):
                 cls_num_list[label_idx] += 1
             else:
-                pass
+                # Log invalid labels for debugging
+                if label_idx not in invalid_labels:
+                    invalid_labels[label_idx] = 0
+                invalid_labels[label_idx] += 1
+        
+        if invalid_labels:
+            print(f"WARNING: Found {sum(invalid_labels.values())} samples with invalid labels!")
+            print(f"Invalid label counts: {invalid_labels}")
+            print("These samples will cause CUDA errors if passed to the loss function.")
         
         # FIX: Avoid divide by zero in LDAM if a class has 0 samples
         for i in range(len(cls_num_list)):
