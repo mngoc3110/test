@@ -9,22 +9,26 @@ echo "=> Installing dependencies..."
 pip install ftfy regex tqdm -q
 
 # 2. Path Configuration (Relative to project root)
+# Consistent with your project structure: dataset/DAiSEE/...
 DATASET_ROOT="./dataset/DAiSEE/DataSet"
 ANNOTATION_ROOT="./dataset/DAiSEE"
 TRAIN_LIST="$ANNOTATION_ROOT/daisee_train_full.txt"
 
 # 3. Automatic Data Merging (Train + Val -> Full Train)
 echo "=> Merging training and validation sets..."
+# Using your specific filenames: daisee_train.txt and daisee_val.txt
 if [ -f "$ANNOTATION_ROOT/daisee_train.txt" ] && [ -f "$ANNOTATION_ROOT/daisee_val.txt" ]; then
     cat "$ANNOTATION_ROOT/daisee_train.txt" "$ANNOTATION_ROOT/daisee_val.txt" > "$TRAIN_LIST"
     echo "   Successfully created $TRAIN_LIST"
+    echo "   Total samples in merged list: $(wc -l < "$TRAIN_LIST")"
 else
     echo "   Error: Could not find daisee_train.txt or daisee_val.txt in $ANNOTATION_ROOT"
+    ls -F "$ANNOTATION_ROOT"
     exit 1
 fi
 
 # 4. Start Training
-echo "=> Starting Training Pipeline (RAER-like Config)..."
+echo "=> Starting Training Pipeline (SOTA Max WAR Configuration)..."
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 python main.py \
@@ -35,11 +39,11 @@ python main.py \
   --epochs 20 \
   --batch-size 4 \
   --optimizer AdamW \
-  --lr 3e-5 \
-  --lr-image-encoder 2e-6 \
-  --lr-prompt-learner 3e-4 \
+  --lr 1e-4 \
+  --lr-image-encoder 1e-5 \
+  --lr-prompt-learner 5e-4 \
   --lr-adapter 1e-4 \
-  --weight-decay 0.01 \
+  --weight-decay 0.02 \
   --milestones 10 15 \
   --gamma 0.1 \
   --temporal-layers 1 \
@@ -60,16 +64,12 @@ python main.py \
   --class-token-position end \
   --class-specific-contexts True \
   --load_and_tune_prompt_learner True \
-  --loss-type ldam \
-  --ldam-s 30.0 \
-  --ldam-max-m 0.35 \
+  --loss-type ce \
   --lambda_dc 0.1 \
   --mi-warmup 5 \
   --dc-warmup 5 \
   --lambda_mi 0.1 \
-  --mi-warmup 5 \
-  --mi-ramp 10 \
   --use-amp \
-  --use-weighted-sampler \
   --grad-clip 1.0 \
   --mixup-alpha 0.2
+
