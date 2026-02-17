@@ -151,17 +151,28 @@ class DAiSEEDataset(data.Dataset):
         self.video_list = []
         try:
             with open(self.list_file, 'r') as f:
-                for line in f:
+                lines = f.readlines()
+                if len(lines) > 0:
+                    print(f"DEBUG: First line of {self.list_file}: {lines[0].strip()}")
+                
+                for line in lines:
                     line = line.strip()
                     if not line: continue
-                    parts = line.split(' ')
-                    # Expected format: path num_frames label
-                    # But path might contain spaces
+                    # Split by any whitespace (handles tabs and spaces)
+                    parts = line.split() 
+                    
                     if len(parts) >= 3:
+                        # Path is everything except the last two elements
                         path = ' '.join(parts[:-2])
                         num_frames = parts[-2]
                         label = parts[-1]
-                        self.video_list.append(DAiSEERecord([path, num_frames, label], self.root_dir))
+                        
+                        # Add simple check to ensure path isn't empty
+                        if path:
+                            self.video_list.append(DAiSEERecord([path, num_frames, label], self.root_dir))
+                    else:
+                        pass # print(f"Warning: Skipping invalid line: {line}")
+                        
         except FileNotFoundError:
             print(f"Error: List file not found: {self.list_file}")
             
