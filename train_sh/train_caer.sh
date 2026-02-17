@@ -1,17 +1,39 @@
 #!/bin/bash
-# CAER Local Training Script - SOTA Configuration (Aiming for 80% Accuracy)
+# CAER Training Script - SOTA Configuration (Aiming for 80% Accuracy)
 # Strategy: Combine Train+Val -> Train Full | Validate on Test | Mixup + More Frames
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# --- LOCAL PATHS ---
-DATASET_ROOT="./dataset/CAER"
-ANNOTATION_ROOT="./dataset/CAER/annotations"
-BOUNDING_BOX_ROOT="./dataset/CAER/bounding_box"
+# --- PATH CONFIGURATION ---
+if [ -d "/kaggle/input" ]; then
+    echo "=> Detected Kaggle Environment."
+    DATASET_ROOT="/kaggle/input/caer-video-dataset/CAER"
+    ANNOTATION_ROOT="/kaggle/input/caer-annotations"
+    # Create Full Train list (Train + Val) in a writable directory
+    cat "$ANNOTATION_ROOT/train.txt" "$ANNOTATION_ROOT/validation.txt" > caer_train_full.txt
+    TRAIN_LIST="caer_train_full.txt"
+    VAL_LIST="$ANNOTATION_ROOT/test.txt"
+    TEST_LIST="$ANNOTATION_ROOT/test.txt"
+    BOUNDING_BOX_FACE="/kaggle/input/caer-bounding-box/face.json"
+    BOUNDING_BOX_BODY="/kaggle/input/caer-bounding-box/body.json"
+else
+    echo "=> Detected Local Environment."
+    DATASET_ROOT="./dataset/CAER"
+    ANNOTATION_ROOT="./dataset/CAER/annotations"
+    # Create Full Train list
+    cat "$ANNOTATION_ROOT/train.txt" "$ANNOTATION_ROOT/validation.txt" > "$ANNOTATION_ROOT/caer_train_full.txt"
+    TRAIN_LIST="$ANNOTATION_ROOT/caer_train_full.txt"
+    VAL_LIST="$ANNOTATION_ROOT/test.txt"
+    TEST_LIST="$ANNOTATION_ROOT/test.txt"
+    BOUNDING_BOX_FACE="./dataset/CAER/bounding_box/face.json"
+    BOUNDING_BOX_BODY="./dataset/CAER/bounding_box/body.json"
+fi
+
+echo "Using Full Training List: $TRAIN_LIST"
 
 python main.py \
   --mode train \
-  --exper-name Train-CAER-SOTA-FullData \
+  --exper-name Train-CAER-SOTA-MaxACC \
   --dataset CAER \
   --gpu 0 \
   --epochs 40 \
@@ -31,12 +53,12 @@ python main.py \
   --seed 42 \
   --print-freq 50 \
   --root-dir "$DATASET_ROOT" \
-  --train-annotation "$ANNOTATION_ROOT/train_val_full.txt" \
-  --val-annotation "$ANNOTATION_ROOT/test.txt" \
-  --test-annotation "$ANNOTATION_ROOT/test.txt" \
+  --train-annotation "$TRAIN_LIST" \
+  --val-annotation "$VAL_LIST" \
+  --test-annotation "$TEST_LIST" \
   --clip-path ViT-B/16 \
-  --bounding-box-face "$BOUNDING_BOX_ROOT/face.json" \
-  --bounding-box-body "$BOUNDING_BOX_ROOT/body.json" \
+  --bounding-box-face "$BOUNDING_BOX_FACE" \
+  --bounding-box-body "$BOUNDING_BOX_BODY" \
   --text-type prompt_ensemble \
   --contexts-number 8 \
   --class-token-position end \
