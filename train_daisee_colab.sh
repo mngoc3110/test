@@ -27,7 +27,7 @@ else
 fi
 
 # 4. Start Training (Benchmarking Config: LDAM + Weighted Sampler + 16 Frames)
-echo "=> Starting Training Pipeline (RAER-like Config)..."
+echo "=> Starting Training Pipeline..."
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 python main.py \
@@ -67,9 +67,11 @@ python main.py \
   --ldam-s 30.0 \
   --ldam-max-m 0.35 \
   --lambda_dc 0.1 \
+  --lambda_mi 0.1 \
   --mi-warmup 5 \
   --dc-warmup 5 \
-  --lambda_mi 0.1 \
+  --mi-ramp 10 \
+  --dc-ramp 10 \
   --use-amp \
   --use-weighted-sampler \
   --grad-clip 1.0 \
