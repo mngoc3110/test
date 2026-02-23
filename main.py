@@ -69,6 +69,7 @@ path_group.add_argument('--bounding-box-body', type=str, default='RAER/bounding_
 train_group = parser.add_argument_group('Training Control', 'Parameters to control the training process')
 train_group.add_argument('--epochs', type=int, default=20, help='Total number of training epochs.')
 train_group.add_argument('--batch-size', type=int, default=4, help='Batch size for training and validation.')
+train_group.add_argument('--accumulation-steps', type=int, default=1, help='Number of steps to accumulate gradients before updating optimizer.')
 train_group.add_argument('--print-freq', type=int, default=10, help='Frequency of printing training logs.')
 train_group.add_argument('--use-amp', action='store_true', help='Use Automatic Mixed Precision.')
 train_group.add_argument('--grad-clip', type=float, default=1.0, help='Gradient clipping value.')
@@ -76,6 +77,7 @@ train_group.add_argument('--grad-clip', type=float, default=1.0, help='Gradient 
 # --- Optimizer & Learning Rate ---
 optim_group = parser.add_argument_group('Optimizer & LR', 'Hyperparameters for the optimizer and scheduler')
 optim_group.add_argument('--optimizer', type=str, default='AdamW', choices=['SGD', 'AdamW'], help='The optimizer to use (SGD or AdamW).')
+optim_group.add_argument('--scheduler', type=str, default='multistep', choices=['multistep', 'cosine'], help='Learning rate scheduler type.')
 optim_group.add_argument('--lr', type=float, default=2e-5, help='Initial learning rate for main modules (temporal, project_fc).')
 optim_group.add_argument('--lr-image-encoder', type=float, default=1e-6, help='Learning rate for the image encoder part (set to 0 to freeze).')
 optim_group.add_argument('--lr-prompt-learner', type=float, default=2e-4, help='Learning rate for the prompt learner.')
@@ -280,7 +282,13 @@ def run_training(args: argparse.Namespace) -> None:
     else:
         raise ValueError(f"Optimizer {args.optimizer} not supported.")
 
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma)
+    if args.scheduler == 'multistep':
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma)
+    elif args.scheduler == 'cosine':
+        print("=> Using CosineAnnealingLR scheduler.")
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
+    else:
+        raise ValueError(f"Scheduler {args.scheduler} not supported.")
     
     # Resume from checkpoint
     if args.resume:
@@ -312,7 +320,7 @@ def run_training(args: argparse.Namespace) -> None:
                     mi_warmup=args.mi_warmup, mi_ramp=args.mi_ramp,
                     dc_warmup=args.dc_warmup, dc_ramp=args.dc_ramp, 
                     use_amp=args.use_amp, grad_clip=args.grad_clip, mixup_alpha=args.mixup_alpha,
-                    use_ldl=args.use_ldl, ldl_warmup=args.ldl_warmup)
+                    use_ldl=args.use_ldl, ldl_warmup=args.ldl_warmup, accumulation_steps=args.accumulation_steps)
     
     for epoch in range(start_epoch, args.epochs):
         inf = f'******************** Epoch: {epoch} ********************'

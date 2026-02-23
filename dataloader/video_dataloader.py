@@ -12,6 +12,68 @@ from numpy.random import randint
 from dataloader.video_transform import *
 from dataloader.daisee_dataloader import daisee_train_data_loader, daisee_test_data_loader
 
+def generate_caer_list(root_dir, output_file, mode):
+    """
+    Generates a list file for CAER dataset by scanning the directory structure.
+    Structure: root_dir/mode/Class/video.avi
+    Output format: relative_path num_frames label
+    """
+    if os.path.exists(output_file):
+        print(f"List file {output_file} already exists. Skipping generation.")
+        return
+
+    print(f"Generating CAER list file: {output_file} from {os.path.join(root_dir, mode)}...")
+    
+    # Class mapping based on models/Text.py order:
+    # ['Anger', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
+    class_map = {
+        'Anger': 1,
+        'Disgust': 2,
+        'Fear': 3,
+        'Happy': 4,
+        'Neutral': 5,
+        'Sad': 6,
+        'Surprise': 7
+    }
+    
+    lines = []
+    mode_dir = os.path.join(root_dir, mode)
+    if not os.path.isdir(mode_dir):
+        print(f"Error: Directory {mode_dir} not found. Cannot generate list.")
+        return
+
+    for class_name, label in class_map.items():
+        class_dir = os.path.join(mode_dir, class_name)
+        if not os.path.isdir(class_dir):
+            continue
+            
+        videos = glob.glob(os.path.join(class_dir, '*.avi')) + glob.glob(os.path.join(class_dir, '*.mp4'))
+        videos.sort()
+        
+        for video_path in videos:
+            # Get relative path for the list file (relative to root_dir)
+            # The VideoDataset joins root_dir + path.
+            # Assuming root_dir is the dataset root (e.g., CAER_Video)
+            rel_path = os.path.relpath(video_path, root_dir)
+            
+            # Count frames
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                print(f"Warning: Could not open {video_path}")
+                continue
+            num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            cap.release()
+            
+            if num_frames > 0:
+                lines.append(f"{rel_path} {num_frames} {label}\n")
+
+    # Ensure the directory for the output file exists
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+    with open(output_file, 'w') as f:
+        f.writelines(lines)
+    print(f"Generated {len(lines)} entries in {output_file}")
+
 # Custom Transform for List of Images (Group Transform)
 class GroupRandomGrayscale(object):
     def __init__(self, p=0.1):
@@ -40,7 +102,7 @@ class VideoRecord(object):
         return int(self._data[2])
 
 class VideoDataset(data.Dataset):
-    def __init__(self, list_file, num_segments, duration, mode, transform, image_size,bounding_box_face,bounding_box_body, crop_body=False, root_dir="", num_classes=8, label_is_0_based=False, max_samples_per_class=None):
+    def __init__(self, list_file, num_segments, duration, mode, transform, image_size,bounding_box_face,bounding_box_body, crop_body=False, root_dir="", num_classes=8):
         self.list_file = list_file
         self.duration = duration
         self.num_segments = num_segments
@@ -51,9 +113,15 @@ class VideoDataset(data.Dataset):
         self.bounding_box_body = bounding_box_body
         self.crop_body = crop_body
         self.root_dir = root_dir
-        self.label_is_0_based = label_is_0_based
-        self.max_samples_per_class = max_samples_per_class
         
+        # Initialize OpenCV Face Detector (Haar Cascade)
+        # This is a fallback for datasets like CAER which don't have bounding boxes provided.
+        # We store the path and load lazily to avoid pickling errors with DataLoader workers.
+        self.cascade_path = 'haarcascade_frontalface_alt.xml'
+        self.face_cascade = None 
+        if not os.path.exists(self.cascade_path):
+             print(f"Warning: Face detector {self.cascade_path} not found. Will use full image if boxes are missing.")
+
         # Debugging: Initialize for saving sample images
         self.debug_samples_path = 'debug_samples'
         os.makedirs(self.debug_samples_path, exist_ok=True)
@@ -65,62 +133,17 @@ class VideoDataset(data.Dataset):
         if self.crop_body: # Only read body boxes if cropping is enabled
             self._read_body_boxes()
 
-    def _read_sample(self):
-        full_list = []
-        with open(self.list_file, 'r') as f:
-            for line in f:
-                parts = line.strip().split(' ')
-                if len(parts) > 3:
-                    # Path contains spaces, join all parts except the last two
-                    path = ' '.join(parts[:-2])
-                    num_frames = parts[-2]
-                    label = parts[-1]
-                    full_list.append([path, num_frames, label])
-                else:
-                    full_list.append(parts)
-        
-        if self.max_samples_per_class is not None and self.mode == 'train':
-            print(f"=> Subsampling dataset: Max {self.max_samples_per_class} samples per class.")
-            # Group samples by class
-            class_dict = {}
-            for item in full_list:
-                label = int(item[-1])
-                if label not in class_dict:
-                    class_dict[label] = []
-                class_dict[label].append(item)
-            
-            # Sample and merge
-            self.sample_list = []
-            # Keep consistent results with a fixed seed
-            random.seed(42)
-            for label in sorted(class_dict.keys()):
-                samples = class_dict[label]
-                random.shuffle(samples)
-                self.sample_list.extend(samples[:self.max_samples_per_class])
-                print(f"   Class {label}: {len(samples)} -> {min(len(samples), self.max_samples_per_class)}")
-        else:
-            self.sample_list = full_list
-
     def _read_boxs(self):
-        self.boxs = {}
-        if self.bounding_box_face and os.path.exists(self.bounding_box_face):
-            try:
-                with open(self.bounding_box_face, 'r') as f:
-                    self.boxs = json.load(f)
-            except Exception as e:
-                print(f"Warning: Failed to load face boxes from {self.bounding_box_face}: {e}")
-        else:
-            # print(f"Warning: Face bounding box file not found at {self.bounding_box_face}. Using full frames.")
-            pass
+        with open(self.bounding_box_face, 'r') as f:
+            self.boxs = json.load(f)
 
+
+    
     def _read_body_boxes(self):
-        self.body_boxes = {}
-        if self.crop_body and self.bounding_box_body and os.path.exists(self.bounding_box_body):
-            try:
-                with open(self.bounding_box_body, 'r') as f:
-                    self.body_boxes = json.load(f)
-            except Exception as e:
-                print(f"Warning: Failed to load body boxes from {self.bounding_box_body}: {e}")
+        if self.bounding_box_body:
+            with open(self.bounding_box_body, 'r') as f:
+                self.body_boxes = json.load(f)
+
 
     def _cv2pil(self,im_cv):
         cv_img_rgb = cv2.cvtColor(im_cv, cv2.COLOR_BGR2RGB)
@@ -151,6 +174,52 @@ class VideoDataset(data.Dataset):
     def _face_detect(self,img,box,margin,mode = 'face'):
         if box is None:
             if mode == 'face':
+                # Try to detect face using OpenCV if available
+                # Lazy loading to avoid pickle error
+                if self.face_cascade is None and os.path.exists(self.cascade_path):
+                    self.face_cascade = cv2.CascadeClassifier(self.cascade_path)
+                
+                if self.face_cascade is not None:
+                    # Convert PIL to CV2 BGR (grayscale for detection)
+                    img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+                    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+                    faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+                    
+                    if len(faces) > 0:
+                        # Strategy: Center-Weighted Selection
+                        # Prioritize faces that are Large AND Central.
+                        # Score = Area - (Penalty * Distance_to_Center)
+                        
+                        img_cx, img_cy = img.width / 2, img.height / 2
+                        best_face = faces[0]
+                        max_score = -float('inf')
+                        
+                        for (x, y, w, h) in faces:
+                            area = w * h
+                            face_cx = x + (w / 2)
+                            face_cy = y + (h / 2)
+                            
+                            # Euclidean distance to image center
+                            dist = ((face_cx - img_cx)**2 + (face_cy - img_cy)**2)**0.5
+                            
+                            # Heuristic: Penalty factor. 
+                            # If a face is 100px away from center, penalty is significant.
+                            # We want to favor a slightly smaller face at center over a huge face at edge.
+                            score = area - (dist * 20) # Weight 20 is empirical
+                            
+                            if score > max_score:
+                                max_score = score
+                                best_face = (x, y, w, h)
+                        
+                        (x, y, w, h) = best_face
+                        # Apply margin
+                        left = max(0, x - margin)
+                        upper = max(0, y - margin)
+                        right = min(img.width, x + w + margin)
+                        lower = min(img.height, y + h + margin)
+                        
+                        return img.crop((left, upper, right, lower))
+                
                 # FALLBACK: Return original image instead of black image if no face detected
                 # This helps prevent information loss in Test set
                 return img
@@ -161,30 +230,48 @@ class VideoDataset(data.Dataset):
             upper = int(upper)
             right = int(right)
             lower = int(lower)
-            
-            # Apply margin
+
+            # Heuristic: if right < left, assume it's xywh and convert to xyxy
+            if right < left and right > 0:
+                right = left + right
+            if lower < upper and lower > 0:
+                lower = upper + lower
+
             left = max(0, left - margin)
             upper = max(0, upper - margin)
             right = min(img.width, right + margin)
             lower = min(img.height, lower + margin)
-            
-            # Safety check: Ensure valid crop coordinates
+
+            # Safety check to prevent crash
             if right <= left or lower <= upper:
-                # print(f"Warning: Invalid crop coordinates (L={left}, U={upper}, R={right}, D={lower}) for image size {img.size}. Using full image.")
                 return img
 
             if mode == 'face':
-                try:
-                    img = img.crop((left, upper, right, lower))
-                except ValueError:
-                    # In case crop fails for any other reason
-                    return img
+                img = img.crop((left, upper, right, lower))
                 return img
             elif mode == 'body':
                 occluded_image = img.copy()
                 draw = ImageDraw.Draw(occluded_image)
                 draw.rectangle([left, upper, right, lower], fill=(0, 0, 0))
                 return occluded_image
+    
+    def _read_sample(self):
+        # tmp = [x.strip().split(' ') for x in open(self.list_file)]
+        # self.sample_list = [item for item in tmp]
+        
+        self.sample_list = []
+        with open(self.list_file, 'r') as f:
+            for line in f:
+                parts = line.strip().split(' ')
+                if len(parts) > 3:
+                    # Path contains spaces, join all parts except the last two
+                    path = ' '.join(parts[:-2])
+                    num_frames = parts[-2]
+                    label = parts[-1]
+                    self.sample_list.append([path, num_frames, label])
+                else:
+                    self.sample_list.append(parts)
+
 
     def _parse_list(self):
         # 
@@ -227,39 +314,26 @@ class VideoDataset(data.Dataset):
 
     def get(self, record, indices):
         # Check if record.path is a directory (frames) or a file (video)
-        path = record.path
-        if os.path.isdir(path):
-            video_frames_path = glob.glob(os.path.join(path, '*'))
+        if os.path.isdir(record.path):
+            video_frames_path = glob.glob(os.path.join(record.path, '*'))
             video_frames_path.sort()
             num_real_frames = len(video_frames_path)
             is_video_file = False
         else:
             # Assume it's a video file
             is_video_file = True
-            if not os.path.exists(path):
-                print(f"Error: Video file not found at {path}")
-                num_real_frames = 0
-            else:
-                # Use CAP_FFMPEG for better stability on Linux/Kaggle
-                cap = cv2.VideoCapture(path, cv2.CAP_FFMPEG)
-                num_real_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                
-                if not cap.isOpened() or num_real_frames <= 0:
-                     # Retry without FFMPEG flag just in case
-                     cap.release()
-                     cap = cv2.VideoCapture(path)
-                     num_real_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                     
-                if not cap.isOpened():
-                     print(f"Warning: Could not open video file {path}")
-                     num_real_frames = 0
+            cap = cv2.VideoCapture(record.path)
+            num_real_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            # Don't release cap yet, we need it to read frames
+            if not cap.isOpened():
+                 print(f"Warning: Could not open video file {record.path}, returning zeros.")
+                 num_real_frames = 0
 
-        if num_real_frames <= 0:
-            # print(f"Warning: No frames found for video {path}, returning zeros.")
+        if num_real_frames == 0:
+            print(f"Warning: No frames found for video {record.path}, returning zeros.")
             dummy_shape = (self.num_segments * self.duration, 3, self.image_size, self.image_size)
-            if is_video_file and 'cap' in locals() and cap.isOpened(): cap.release()
-            final_label = record.label if self.label_is_0_based else record.label - 1
-            return torch.zeros(dummy_shape), torch.zeros(dummy_shape), final_label
+            if is_video_file and 'cap' in locals(): cap.release()
+            return torch.zeros(dummy_shape), torch.zeros(dummy_shape), record.label - 1
 
         # Clamp indices to be valid
         indices = np.clip(indices, 0, num_real_frames - 1)
@@ -331,11 +405,13 @@ class VideoDataset(data.Dataset):
                 # 4. Face Detection (Crop)
                 # Reduce margin to 10 (Tight Crop) to zoom in on micro-expressions (eyebrows/eyes)
                 # This helps separate Neutral vs Confusion
-                # IMPORTANT FIX: Return full image if no box found (Fallback)
+                # IMPORTANT FIX: If box is None, _face_detect will attempt auto-detection
                 img_pil_face = self._face_detect(img_pil, box, margin=10, mode='face')
 
                 # 5. Body Crop (Optional)
-                img_pil_body = img_pil # Default to full image
+                img_pil_body = img_pil # Default to full image (Context)
+                
+                # If explicit body boxes exist, use them. Otherwise, full image is the best context.
                 if self.crop_body:
                     body_box = None
                     if matched_video_key and matched_video_key in self.body_boxes:
@@ -349,6 +425,7 @@ class VideoDataset(data.Dataset):
                         right = min(img_pil.width, right); lower = min(img_pil.height, lower)
                         if right > left and lower > upper:
                             img_pil_body = img_pil.crop((left, upper, right, lower))
+                    # else: Keep img_pil_body as full image (Context)
 
                 # 6. Resize and Stack
                 # Resize Body
@@ -388,34 +465,37 @@ class VideoDataset(data.Dataset):
         process_data = process_data.view(-1, 3, self.image_size, self.image_size)
         process_data_face = process_data_face.view(-1, 3, self.image_size, self.image_size)
         
-        # Adjust label based on whether it's 0-based or 1-based
-        final_label = record.label if self.label_is_0_based else record.label - 1
-        return process_data_face, process_data, final_label
+        return process_data_face, process_data, record.label - 1
 
     def __len__(self):
         return len(self.video_list)
 
 
-def train_data_loader(root_dir, list_file, num_segments, duration, image_size,dataset_name,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8, label_is_0_based=False):
+def train_data_loader(root_dir, list_file, num_segments, duration, image_size,dataset_name,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8):
     if dataset_name == 'DAiSEE':
         print(f"=> Using DAiSEE smart dataloader...")
         return daisee_train_data_loader(root_dir, list_file, num_segments, duration, image_size, 
                                         bounding_box_face, bounding_box_body, crop_body, num_classes)
         
-    # Auto-limit samples for CAER if needed
-    max_samples = None if dataset_name == "CAER" else None
-
-    # CAER labels are 0-based (0-6)
-    if dataset_name == "CAER":
-        label_is_0_based = True
+    if dataset_name == 'CAER':
+        # Auto-generate list file if missing
+        if not os.path.exists(list_file):
+            # Infer mode from filename or assume 'train' if not obvious?
+            # list_file path is usually something like '.../train.txt'
+            # But let's check if 'train' is in the path
+            mode = 'train' # Default
+            if 'val' in list_file: mode = 'validation'
+            elif 'test' in list_file: mode = 'test'
+            
+            generate_caer_list(root_dir, list_file, mode)
 
     if dataset_name == "RAER" or dataset_name == "CAER":
          train_transforms = torchvision.transforms.Compose([
             # Apply ColorJitter from video_transform (works on list of images)
             ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.2), 
             GroupRandomGrayscale(p=0.2), # Custom transform for list of images
-            RandomRotation(4),
-            GroupResize(image_size),
+            RandomRotation(30),
+            GroupRandomSizedCrop(image_size),
             GroupRandomHorizontalFlip(),
             Stack(),
             ToTorchFormatTensor()])
@@ -437,23 +517,20 @@ def train_data_loader(root_dir, list_file, num_segments, duration, image_size,da
                               bounding_box_face=bounding_box_face,
                               bounding_box_body=bounding_box_body,
                               crop_body=crop_body,
-                              num_classes=num_classes,
-                              label_is_0_based=label_is_0_based,
-                              max_samples_per_class=max_samples
+                              num_classes=num_classes
                               )
     return train_data
 
 
-def test_data_loader(root_dir, list_file, num_segments, duration, image_size,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8, label_is_0_based=False):
-    # CAER detection logic based on path if needed, but usually passed from main.
-    # However, main.py calls test_data_loader without dataset_name.
-    # We can infer from path or just rely on default. 
-    # But wait, if we use CAER, we MUST set label_is_0_based=True here too if main.py doesn't.
-    
-    # Simple heuristic: Check if "CAER" is in the root_dir or list_file path
-    if "CAER" in root_dir or "CAER" in list_file:
-        label_is_0_based = True
-    
+def test_data_loader(root_dir, list_file, num_segments, duration, image_size,bounding_box_face,bounding_box_body, crop_body=False, num_classes=8, dataset_name=None):
+    # Auto-generate list file for CAER if missing
+    if dataset_name == 'CAER' and not os.path.exists(list_file):
+        mode = 'test' # Default for test_loader, but could be validation
+        if 'val' in list_file: mode = 'validation'
+        elif 'train' in list_file: mode = 'train'
+        
+        generate_caer_list(root_dir, list_file, mode)
+
     test_transform = torchvision.transforms.Compose([GroupResize(image_size),
                                                      Stack(),
                                                      ToTorchFormatTensor()])
@@ -467,7 +544,6 @@ def test_data_loader(root_dir, list_file, num_segments, duration, image_size,bou
                              bounding_box_face=bounding_box_face,
                              bounding_box_body=bounding_box_body,
                              crop_body=crop_body,
-                             num_classes=num_classes,
-                             label_is_0_based=label_is_0_based
+                             num_classes=num_classes
                              )
     return test_data

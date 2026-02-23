@@ -306,52 +306,38 @@ class_descriptor_caer = [
 prompt_ensemble_caer = [
     [ # Anger
         "A photo of a person showing anger.",
-        "A face with furrowed brows, a glare, and tightened lips.",
-        "An angry facial expression with intense eyes.",
-        "A person looking furious and upset.",
-        "A photo of someone expressing rage or annoyance."
+        "Furrowed eyebrows, narrow eyes, tightened lips, and flared nostrils.",
+        "Leaning forward, tense stance, fists clenched, or hand pointing."
     ],
     [ # Disgust
         "A photo of a person showing disgust.",
-        "A face with a wrinkled nose and raised upper lip.",
-        "A disgusted facial expression as if smelling something bad.",
-        "A person looking repulsed or sickened.",
-        "A photo of someone expressing strong aversion."
+        "A wrinkled nose, lowered eyebrows, a tightened mouth, and narrow eyes.",
+        "Slight step back, body angled away, hand raised or shielding face."
     ],
     [ # Fear
         "A photo of a person showing fear.",
-        "A face with wide eyes, raised eyebrows, and open mouth.",
-        "A fearful facial expression with a pale look.",
-        "A person looking terrified or scared.",
-        "A photo of someone reacting to a threat or danger."
+        "Raised eyebrows, parted lips, a furrowed brow, and a retracted chin.",
+        "Hands close to chest or tightly together, small, cautious steps backward."
     ],
     [ # Happy
         "A photo of a person showing happiness.",
-        "A smiling face with raised cheeks and bright eyes.",
-        "A happy facial expression with a genuine smile.",
-        "A person looking joyful, cheerful, and content.",
-        "A photo of someone laughing or feeling great."
+        "A smiling mouth, raised cheeks, wrinkled eyes, and arched eyebrows.",
+        "Leaning in toward the other person, quick, cheerful movements."
     ],
     [ # Neutral
         "A photo of a person showing a neutral expression.",
-        "A calm face with no strong emotion and relaxed muscles.",
-        "A neutral facial expression with a steady gaze.",
-        "A person looking indifferent or poker-faced.",
-        "A photo of someone with a blank or resting face."
+        "Relaxed facial muscles, a straight mouth, a smooth forehead, and unremarkable eyebrows.",
+        "Relaxed posture, open stance, steady, calm eye contact."
     ],
     [ # Sad
         "A photo of a person showing sadness.",
-        "A face with a frown, drooping eyelids, and down-turned lips.",
-        "A sad facial expression with a tearful look.",
-        "A person looking sorrowful, depressed, or unhappy.",
-        "A photo of someone crying or feeling grief."
+        "Tears, a downward-turned mouth, drooping upper eyelids, and a wrinkled forehead.",
+        "Head down, avoiding eye contact, slow, withdrawn movements."
     ],
     [ # Surprise
         "A photo of a person showing surprise.",
-        "A face with an open mouth, wide eyes, and raised brows.",
-        "A surprised facial expression with a shocked look.",
-        "A person looking astonished or amazed.",
-        "A photo of someone reacting to something unexpected."
+        "Widened eyes, an open mouth, raised eyebrows, and a frozen expression.",
+        "Sudden stillness, widened eyes on the other person, hands raised or paused mid-motion."
     ]
 ]
 
@@ -375,30 +361,22 @@ class_descriptor_daisee = [
 prompt_ensemble_daisee = [
     [ # Very Low (0)
         "A video of a student with very low engagement.",
-        "A student looking away, sleeping, or completely uninterested.",
-        "A completely disengaged student with no focus on the lesson.",
-        "A student who is zoning out or doing something else entirely.",
-        "A photo of a student showing boredom and lack of attention."
+        "A student looking away or sleeping.",
+        "A completely disengaged student."
     ],
     [ # Low (1)
         "A video of a student with low engagement.",
-        "A student looking distracted, yawning, or fidgeting.",
-        "A student showing little interest and frequent loss of focus.",
-        "A student struggling to pay attention to the lecture.",
-        "A photo of a student who seems bored or tired."
+        "A student looking distracted or bored.",
+        "A student showing little interest in the lesson."
     ],
     [ # High (2)
         "A video of a student with high engagement.",
-        "A student looking at the screen and paying attention.",
-        "A student following the lecture with a steady gaze.",
-        "A focused student listening to the teacher.",
-        "A photo of a student showing interest in the material."
+        "A student looking at the screen attentively.",
+        "A student following the lecture."
     ],
     [ # Very High (3)
         "A video of a highly engaged student.",
-        "A student leaning forward, taking notes, or reacting to the content.",
-        "A student completely absorbed and immersed in learning.",
-        "A very focused student showing enthusiasm and active participation.",
-        "A photo of a student who is deeply concentrating on the lesson."
+        "A student leaning forward and taking notes.",
+        "A student completely absorbed in learning."
     ]
 ]

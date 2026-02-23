@@ -18,7 +18,7 @@ class Trainer:
                  dc_criterion=None, lambda_dc=0,
                  mi_warmup=0, mi_ramp=0,
                  dc_warmup=0, dc_ramp=0, use_amp=False, grad_clip=1.0, mixup_alpha=0.0,
-                 use_ldl=False, ldl_warmup=0):
+                 use_ldl=False, ldl_warmup=0, accumulation_steps=1):
         self.model = model
         self.criterion = criterion
         self.optimizer = optimizer
@@ -39,7 +39,8 @@ class Trainer:
         self.mixup_alpha = mixup_alpha
         self.use_ldl = use_ldl
         self.ldl_warmup = ldl_warmup
-        print(f"DEBUG: Trainer initialized with use_ldl={use_ldl}, ldl_warmup={ldl_warmup}")
+        self.accumulation_steps = accumulation_steps
+        print(f"DEBUG: Trainer initialized with use_ldl={use_ldl}, ldl_warmup={ldl_warmup}, accumulation_steps={accumulation_steps}")
         
         if self.use_amp:
             self.scaler = torch.cuda.amp.GradScaler()
@@ -86,6 +87,7 @@ class Trainer:
         if is_train:
             self.model.train()
             mode_str = "Train"
+            self.optimizer.zero_grad() # Initialize gradients
         else:
             self.model.eval()
             mode_str = "Valid"
@@ -218,27 +220,37 @@ class Trainer:
                          loss += moco_loss
                          moco_losses.update(moco_loss.item(), target.size(0))
 
+                # Update meters before scaling loss (using the full batch loss)
+                losses.update(loss.item(), target.size(0))
+
                 if is_train:
-                    self.optimizer.zero_grad()
+                    # Scale loss for gradient accumulation
+                    loss = loss / self.accumulation_steps
+                    
                     if self.use_amp:
                         self.scaler.scale(loss).backward()
-                        if self.grad_clip > 0:
-                            self.scaler.unscale_(self.optimizer)
-                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
                     else:
                         loss.backward()
-                        if self.grad_clip > 0:
-                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
-                        self.optimizer.step()
+                        
+                    # Step optimizer only after accumulation_steps
+                    if (i + 1) % self.accumulation_steps == 0:
+                        if self.use_amp:
+                            if self.grad_clip > 0:
+                                self.scaler.unscale_(self.optimizer)
+                                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+                            self.scaler.step(self.optimizer)
+                            self.scaler.update()
+                        else:
+                            if self.grad_clip > 0:
+                                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+                            self.optimizer.step()
+                        self.optimizer.zero_grad()
 
                 # Record metrics
                 preds = output.argmax(dim=1)
                 correct_preds = preds.eq(target).sum().item()
                 acc = (correct_preds / target.size(0)) * 100.0
 
-                losses.update(loss.item(), target.size(0))
                 war_meter.update(acc, target.size(0))
 
                 # Collect preds for UAR
@@ -279,6 +291,20 @@ class Trainer:
                     'WAR': f"{war_meter.avg:.2f}%",
                     'UAR': f"{running_uar:.2f}%"
                 })
+            
+            # Perform optimizer step for any remaining gradients at the end of epoch
+            if is_train and (i + 1) % self.accumulation_steps != 0:
+                 if self.use_amp:
+                    if self.grad_clip > 0:
+                        self.scaler.unscale_(self.optimizer)
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                 else:
+                    if self.grad_clip > 0:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+                    self.optimizer.step()
+                 self.optimizer.zero_grad()
         
         # Calculate epoch-level metrics
         all_preds = torch.cat(all_preds_list)
