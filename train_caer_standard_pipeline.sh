@@ -1,11 +1,11 @@
 #!/bin/bash
-# CAER TRAINING - BALANCED PIPELINE (ORIGINAL SCHEDULER + GRAD ACCUM + AUGMENTATION)
+# CAER TRAINING - SUBSET (30% Data) for Fast Experimentation
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export FFREPORT=file=/dev/null:level=24
 
 python main.py \
   --mode train \
-  --exper-name CAER-Balanced-Pipeline \
+  --exper-name CAER-Subset-Experiment \
   --dataset CAER \
   --gpu mps \
   --epochs 30 \
@@ -25,9 +25,9 @@ python main.py \
   --duration 1 \
   --image-size 224 \
   --seed 42 \
-  --print-freq 50 \
+  --print-freq 200 \
   --root-dir ./CAER_Video \
-  --train-annotation ./CAER_Video/train.txt \
+  --train-annotation ./CAER_Video/train_subset.txt \
   --val-annotation ./CAER_Video/validation.txt \
   --test-annotation ./CAER_Video/test.txt \
   --clip-path ViT-B/16 \
@@ -48,4 +48,4 @@ python main.py \
   --crop-body \
   --grad-clip 1.0 \
   --mixup-alpha 0.0 \
-  --label-smoothing 0.1
+  --label-smoothing 0.1 | grep -E "Epoch|UAR|WAR|Loss" --line-buffered
