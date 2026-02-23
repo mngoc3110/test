@@ -433,11 +433,10 @@ class VideoDataset(data.Dataset):
                 img_cv_body, _ = self._resize_image(img_cv_body, self.image_size, self.image_size)
                 img_pil_body = self._cv2pil(img_cv_body)
                 
-                # Resize Face (face_detect returns cropped image, we need to resize it too?)
-                # Wait, _face_detect returns cropped image but doesn't resize it to self.image_size?
-                # The original code didn't resize face explicitly here, but transform does GroupResize.
-                # However, for consistency, let's trust the transform pipeline which includes GroupResize.
-                # But wait, `img_pil_face` might be tiny.
+                # Resize Face (Fix for GroupRandomSizedCrop assertion error)
+                img_cv_face = self._pil2cv(img_pil_face)
+                img_cv_face, _ = self._resize_image(img_cv_face, self.image_size, self.image_size)
+                img_pil_face = self._cv2pil(img_cv_face)
                 
                 images.append(img_pil_body)
                 images_face.append(img_pil_face)

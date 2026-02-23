@@ -1,6 +1,7 @@
 #!/bin/bash
 # CAER TRAINING - BALANCED PIPELINE (ORIGINAL SCHEDULER + GRAD ACCUM + AUGMENTATION)
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export FFREPORT=file=/dev/null:level=24
 
 python main.py \
   --mode train \
