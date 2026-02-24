@@ -18,21 +18,19 @@ python main.py \
   --scheduler cosine \
   --lr 2e-05 \
   --lr-image-encoder 5e-06 \
-  --lr-prompt-learner 1e-04 \
-  --lr-adapter 1e-04 \
+  --lr-prompt-learner 5e-05 \
+  --lr-adapter 5e-05 \
   --weight-decay 0.0005 \
   --num-segments 8 \
-  --temperature 1.0 \
-  --loss-type ldam \
-  --ldam-max-m 0.2 \
-  --ldam-s 30.0 \
-  --use-weighted-sampler True \
+  --temperature 0.07 \
+  --loss-type ce \
+  --use-weighted-sampler False \
   --lambda_mi 0.05 \
   --mi-warmup 0 \
-  --label-smoothing 0 \
+  --label-smoothing 0.1 \
   --root-dir /kaggle/input/processed-caer-video-dataset \
   --train-annotation /kaggle/working/test/CAER_Video/train_subset.txt \
   --val-annotation /kaggle/input/processed-caer-video-dataset/validation.txt \
-  --clip-path ViT-B/32 \
+  --clip-path ViT-B/16 \
   --bounding-box-face /kaggle/input/processed-caer-video-dataset/face_boxes_mediapipe.json \
   --resume $PRETRAINED_PATH
