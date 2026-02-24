@@ -100,7 +100,7 @@ class Trainer:
         all_targets_list = []
         saved_images_count = 0 
 
-        pbar = tqdm.tqdm(loader, desc=f"{mode_str} Epoch {epoch_str}")
+        pbar = tqdm(loader, desc=f"{mode_str} Epoch {epoch_str}")
         
         for i, (images_face, images_body, target) in enumerate(pbar):
             if i == 0:
