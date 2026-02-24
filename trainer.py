@@ -106,179 +106,166 @@ class Trainer:
             images_face = images_face.to(self.device)
             images_body = images_body.to(self.device)
             target = target.to(self.device)
-                
-                # Apply Mixup
-                if is_train and self.mixup_alpha > 0:
-                    images_face, images_body, index, lam = self.mixup_data(images_face, images_body, self.mixup_alpha)
-                    target_b = target[index]
-
-                with torch.cuda.amp.autocast(enabled=self.use_amp):
-                    # Forward pass
-                    output, learnable_text_features, hand_crafted_text_features, moco_logits = self.model(images_face, images_body)
-                    
-                    # DEBUG: Check model output for NaN
-                    if torch.isnan(output).any():
-                        print(f"\n[CRITICAL ERROR] Model output contains NaN at batch {i}!")
-                        print(f"  Input Min/Max: {images_face.min().item():.4f} / {images_face.max().item():.4f}")
-                        # Check intermediates if possible or just break
-                        
-                    # For MI and DC losses, if using prompt ensembling, average the learnable_text_features
-                    processed_learnable_text_features = learnable_text_features
-                    if hasattr(self.model, 'is_ensemble') and self.model.is_ensemble:
-                        num_classes = self.model.num_classes
-                        num_prompts_per_class = self.model.num_prompts_per_class
-                        # Reshape from (C*P, D) to (C, P, D) and then average over P
-                        processed_learnable_text_features = learnable_text_features.view(num_classes, num_prompts_per_class, -1).mean(dim=1)
-
-                    # Calculate loss
-                    # Check if we should use LDL (after warmup) or fallback to CE
-                    current_criterion = self.criterion
-                    if self.use_ldl and int(epoch_str) < self.ldl_warmup:
-                         # Fallback to standard CE during warmup if using LDL wrapper
-                         # But self.criterion is SemanticLDLLoss. We need a simple CE.
-                         # Assuming we can just compute CE here or use a separate criterion.
-                         # Simpler: SemanticLDLLoss already handles temperature. If we want HARD labels,
-                         # we can just use F.cross_entropy.
-                         current_criterion = torch.nn.CrossEntropyLoss()
-                    
-                    if isinstance(current_criterion, SemanticLDLLoss):
-                        if is_train and self.mixup_alpha > 0:
-                            classification_loss = lam * current_criterion(output, target, processed_learnable_text_features) + \
-                                                  (1 - lam) * current_criterion(output, target_b, processed_learnable_text_features)
-                        else:
-                            classification_loss = current_criterion(output, target, processed_learnable_text_features)
-                    else:
-                        # Standard CE or LSR
-                        if is_train and self.mixup_alpha > 0:
-                            classification_loss = lam * current_criterion(output, target) + (1 - lam) * current_criterion(output, target_b)
-                        else:
-                            classification_loss = current_criterion(output, target)
-                    
-                    # DEBUG: Print details for the first batch of the first epoch
-                    if is_train and int(epoch_str) == 0 and i == 0:
-                        print(f"\n[DEBUG] Batch 0 Check:")
-                        print(f"  Logits Shape: {output.shape}")
-                        print(f"  Target Shape: {target.shape}")
-                        print(f"  Target Min/Max: {target.min().item()} / {target.max().item()}")
-                        # Handle NaN print safely
-                        logits_np = output[:2].detach().cpu().numpy()
-                        print(f"  Logits (first 2): {logits_np}")
-                        print(f"  Targets (first 2): {target[:2].detach().cpu().numpy()}")
-                        print(f"  CE/LDL Loss: {classification_loss.item():.6f}")
-                        if self.mi_criterion is not None:
-                            mi_val = self.mi_criterion(processed_learnable_text_features, hand_crafted_text_features)
-                            print(f"  MI Loss: {mi_val.item():.6f}")
-                        if self.dc_criterion is not None:
-                            dc_val = self.dc_criterion(processed_learnable_text_features)
-                            print(f"  DC Loss: {dc_val.item():.6f}")
-                        if hasattr(self.model, 'args') and hasattr(self.model.args, 'temperature'):
-                             print(f"  Model Temperature: {self.model.args.temperature}")
-
-                    loss = classification_loss
-
-                    if is_train and self.mi_criterion is not None:
-                        mi_weight = get_loss_weight(int(epoch_str), self.mi_warmup, self.mi_ramp, self.lambda_mi)
-                        mi_loss = self.mi_criterion(processed_learnable_text_features, hand_crafted_text_features)
-                        loss += mi_weight * mi_loss
-                        mi_losses.update(mi_loss.item(), target.size(0))
-
-                    if is_train and self.dc_criterion is not None:
-                        dc_weight = get_loss_weight(int(epoch_str), self.dc_warmup, self.dc_ramp, self.lambda_dc)
-                        dc_loss = self.dc_criterion(processed_learnable_text_features)
-                        loss += dc_weight * dc_loss
-                        dc_losses.update(dc_loss.item(), target.size(0))
-
-                    if is_train and moco_logits is not None:
-                         moco_target = torch.zeros(moco_logits.size(0), dtype=torch.long).to(self.device)
-                         moco_loss = torch.nn.CrossEntropyLoss()(moco_logits, moco_target)
-                         loss += moco_loss
-                         moco_losses.update(moco_loss.item(), target.size(0))
-
-                # Update meters before scaling loss (using the full batch loss)
-                losses.update(loss.item(), target.size(0))
-
-                if is_train:
-                    # Scale loss for gradient accumulation
-                    loss = loss / self.accumulation_steps
-                    
-                    if self.use_amp:
-                        self.scaler.scale(loss).backward()
-                    else:
-                        loss.backward()
-                        
-                    # Step optimizer only after accumulation_steps
-                    if (i + 1) % self.accumulation_steps == 0:
-                        if self.use_amp:
-                            if self.grad_clip > 0:
-                                self.scaler.unscale_(self.optimizer)
-                                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
-                            self.scaler.step(self.optimizer)
-                            self.scaler.update()
-                        else:
-                            if self.grad_clip > 0:
-                                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
-                            self.optimizer.step()
-                        self.optimizer.zero_grad()
-
-                # Record metrics
-                preds = output.argmax(dim=1)
-                correct_preds = preds.eq(target).sum().item()
-                acc = (correct_preds / target.size(0)) * 100.0
-
-                war_meter.update(acc, target.size(0))
-
-                # Collect preds for UAR
-                all_preds_list.append(preds.cpu())
-                all_targets_list.append(target.cpu())
-
-                if not is_train and saved_images_count < 32:
-                    for img_idx in range(images_face.size(0)):
-                        if saved_images_count < 32:
-                            self._save_debug_image(
-                                images_face[img_idx].cpu(),
-                                preds[img_idx].item(),
-                                target[img_idx].item(),
-                                epoch_str,
-                                i,
-                                img_idx
-                            )
-                            saved_images_count += 1
-                        else:
-                            break
-                
-                # Update progress bar with Running UAR
-                running_uar = 0.0
-                if len(all_preds_list) > 0:
-                    curr_preds = torch.cat(all_preds_list).numpy()
-                    curr_targets = torch.cat(all_targets_list).numpy()
-                    # Only calc UAR every 10 batches to save CPU time
-                    if i % 10 == 0: 
-                        try:
-                            cm = confusion_matrix(curr_targets, curr_preds, labels=range(output.shape[1]))
-                            class_acc = cm.diagonal() / (cm.sum(axis=1) + 1e-6)
-                            running_uar = np.nanmean(class_acc) * 100
-                        except:
-                            pass
-                
-                pbar.set_postfix({
-                    'Loss': f"{losses.avg:.4f}",
-                    'WAR': f"{war_meter.avg:.2f}%",
-                    'UAR': f"{running_uar:.2f}%"
-                })
             
-            # Perform optimizer step for any remaining gradients at the end of epoch
-            if is_train and (i + 1) % self.accumulation_steps != 0:
-                 if self.use_amp:
-                    if self.grad_clip > 0:
-                        self.scaler.unscale_(self.optimizer)
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-                 else:
-                    if self.grad_clip > 0:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
-                    self.optimizer.step()
-                 self.optimizer.zero_grad()
+            # Apply Mixup
+            if is_train and self.mixup_alpha > 0:
+                images_face, images_body, index, lam = self.mixup_data(images_face, images_body, self.mixup_alpha)
+                target_b = target[index]
+
+            with torch.cuda.amp.autocast(enabled=self.use_amp):
+                # Forward pass
+                output, learnable_text_features, hand_crafted_text_features, moco_logits = self.model(images_face, images_body)
+                
+                # DEBUG: Check model output for NaN
+                if torch.isnan(output).any():
+                    print(f"\n[CRITICAL ERROR] Model output contains NaN at batch {i}!")
+                    print(f"  Input Min/Max: {images_face.min().item():.4f} / {images_face.max().item():.4f}")
+                    # Check intermediates if possible or just break
+                    
+                # For MI and DC losses, if using prompt ensembling, average the learnable_text_features
+                processed_learnable_text_features = learnable_text_features
+                if hasattr(self.model, 'is_ensemble') and self.model.is_ensemble:
+                    num_classes = self.model.num_classes
+                    num_prompts_per_class = self.model.num_prompts_per_class
+                    # Reshape from (C*P, D) to (C, P, D) and then average over P
+                    processed_learnable_text_features = learnable_text_features.view(num_classes, num_prompts_per_class, -1).mean(dim=1)
+
+                # Calculate loss
+                # Check if we should use LDL (after warmup) or fallback to CE
+                current_criterion = self.criterion
+                if self.use_ldl and int(epoch_str) < self.ldl_warmup:
+                        # Fallback to standard CE during warmup if using LDL wrapper
+                        # But self.criterion is SemanticLDLLoss. We need a simple CE.
+                        # Assuming we can just compute CE here or use a separate criterion.
+                        # Simpler: SemanticLDLLoss already handles temperature. If we want HARD labels,
+                        # we can just use F.cross_entropy.
+                        current_criterion = torch.nn.CrossEntropyLoss()
+                
+                if isinstance(current_criterion, SemanticLDLLoss):
+                    if is_train and self.mixup_alpha > 0:
+                        classification_loss = lam * current_criterion(output, target, processed_learnable_text_features) + \
+                                                (1 - lam) * current_criterion(output, target_b, processed_learnable_text_features)
+                    else:
+                        classification_loss = current_criterion(output, target, processed_learnable_text_features)
+                else:
+                    # Standard CE or LSR
+                    if is_train and self.mixup_alpha > 0:
+                        classification_loss = lam * current_criterion(output, target) + (1 - lam) * current_criterion(output, target_b)
+                    else:
+                        classification_loss = current_criterion(output, target)
+                
+                # DEBUG: Print details for the first batch of the first epoch
+                if is_train and int(epoch_str) == 0 and i == 0:
+                    print(f"\n[DEBUG] Batch 0 Check:")
+                    print(f"  Logits Shape: {output.shape}")
+                    print(f"  Target Shape: {target.shape}")
+                    print(f"  Target Min/Max: {target.min().item()} / {target.max().item()}")
+                    # Handle NaN print safely
+                    logits_np = output[:2].detach().cpu().numpy()
+                    print(f"  Logits (first 2): {logits_np}")
+                    print(f"  Targets (first 2): {target[:2].detach().cpu().numpy()}")
+                    print(f"  CE/LDL Loss: {classification_loss.item():.6f}")
+                    if self.mi_criterion is not None:
+                        mi_val = self.mi_criterion(processed_learnable_text_features, hand_crafted_text_features)
+                        print(f"  MI Loss: {mi_val.item():.6f}")
+                    if self.dc_criterion is not None:
+                        dc_val = self.dc_criterion(processed_learnable_text_features)
+                        print(f"  DC Loss: {dc_val.item():.6f}")
+                    if hasattr(self.model, 'args') and hasattr(self.model.args, 'temperature'):
+                            print(f"  Model Temperature: {self.model.args.temperature}")
+
+                loss = classification_loss
+
+                if is_train and self.mi_criterion is not None:
+                    mi_weight = get_loss_weight(int(epoch_str), self.mi_warmup, self.mi_ramp, self.lambda_mi)
+                    mi_loss = self.mi_criterion(processed_learnable_text_features, hand_crafted_text_features)
+                    loss += mi_weight * mi_loss
+                    mi_losses.update(mi_loss.item(), target.size(0))
+
+                if is_train and self.dc_criterion is not None:
+                    dc_weight = get_loss_weight(int(epoch_str), self.dc_warmup, self.dc_ramp, self.lambda_dc)
+                    dc_loss = self.dc_criterion(processed_learnable_text_features)
+                    loss += dc_weight * dc_loss
+                    dc_losses.update(dc_loss.item(), target.size(0))
+
+                if is_train and moco_logits is not None:
+                        moco_target = torch.zeros(moco_logits.size(0), dtype=torch.long).to(self.device)
+                        moco_loss = torch.nn.CrossEntropyLoss()(moco_logits, moco_target)
+                        loss += moco_loss
+                        moco_losses.update(moco_loss.item(), target.size(0))
+
+            # Update meters before scaling loss (using the full batch loss)
+            losses.update(loss.item(), target.size(0))
+
+            if is_train:
+                # Scale loss for gradient accumulation
+                loss = loss / self.accumulation_steps
+                
+                if self.use_amp:
+                    self.scaler.scale(loss).backward()
+                else:
+                    loss.backward()
+                    
+                # Step optimizer only after accumulation_steps
+                if (i + 1) % self.accumulation_steps == 0:
+                    if self.use_amp:
+                        if self.grad_clip > 0:
+                            self.scaler.unscale_(self.optimizer)
+                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        if self.grad_clip > 0:
+                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+                        self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+            # Record metrics
+            preds = output.argmax(dim=1)
+            correct_preds = preds.eq(target).sum().item()
+            acc = (correct_preds / target.size(0)) * 100.0
+
+            war_meter.update(acc, target.size(0))
+
+            # Collect preds for UAR
+            all_preds_list.append(preds.cpu())
+            all_targets_list.append(target.cpu())
+
+            if not is_train and saved_images_count < 32:
+                for img_idx in range(images_face.size(0)):
+                    if saved_images_count < 32:
+                        self._save_debug_image(
+                            images_face[img_idx].cpu(),
+                            preds[img_idx].item(),
+                            target[img_idx].item(),
+                            epoch_str,
+                            i,
+                            img_idx
+                        )
+                        saved_images_count += 1
+                    else:
+                        break
+            
+            # Update progress bar with Running UAR
+            running_uar = 0.0
+            if len(all_preds_list) > 0:
+                curr_preds = torch.cat(all_preds_list).numpy()
+                curr_targets = torch.cat(all_targets_list).numpy()
+                # Only calc UAR every 10 batches to save CPU time
+                if i % 10 == 0: 
+                    try:
+                        cm = confusion_matrix(curr_targets, curr_preds, labels=range(output.shape[1]))
+                        class_acc = cm.diagonal() / (cm.sum(axis=1) + 1e-6)
+                        running_uar = np.nanmean(class_acc) * 100
+                    except:
+                        pass
+            
+            pbar.set_postfix({
+                'Loss': f"{losses.avg:.4f}",
+                'WAR': f"{war_meter.avg:.2f}%",
+                'UAR': f"{running_uar:.2f}%"
+            })
+
         
         # Calculate epoch-level metrics
         all_preds = torch.cat(all_preds_list)
