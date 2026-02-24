@@ -179,6 +179,10 @@ class GenerateModel(nn.Module):
         video_body_features = self.temporal_net_body(image_body_features)
 
         # Concatenate the two parts
+        if not hasattr(self, '_logged_fusion'):
+            print(f"[DEBUG] Model Fusion: Concatenating Face {video_face_features.shape} + Body {video_body_features.shape}")
+            self._logged_fusion = True
+            
         video_features = torch.cat((video_face_features, video_body_features), dim=-1)
         video_features = self.project_fc(video_features)
         # Robust normalization to avoid NaN on MPS

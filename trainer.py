@@ -83,62 +83,29 @@ class Trainer:
         return mixed_x1, mixed_x2, index, lam
 
     def _run_one_epoch(self, loader, epoch_str, is_train=True):
-        """Runs one epoch of training or validation."""
+        mode_str = "Train" if is_train else "Valid"
+        
         if is_train:
             self.model.train()
-            mode_str = "Train"
-            self.optimizer.zero_grad(set_to_none=True) # Initialize gradients
         else:
             self.model.eval()
-            mode_str = "Valid"
 
-        losses = AverageMeter('Loss', ':.4e')
-        mi_losses = AverageMeter('MI Loss', ':.4e')
-        dc_losses = AverageMeter('DC Loss', ':.4e')
-        moco_losses = AverageMeter('MoCo Loss', ':.4e')
-        war_meter = AverageMeter('WAR', ':6.2f')
+        losses = AverageMeter()
+        war_meter = AverageMeter()
         
-        # Lists to store predictions for UAR calculation
         all_preds_list = []
         all_targets_list = []
-        
-        saved_images_count = 0
+        saved_images_count = 0 
 
-        # Print weights at the start of training epoch
-        if is_train:
-            mi_weight = get_loss_weight(int(epoch_str), self.mi_warmup, self.mi_ramp, self.lambda_mi)
-            dc_weight = get_loss_weight(int(epoch_str), self.dc_warmup, self.dc_ramp, self.lambda_dc)
-            
-            # Determine effective LDL weight (warmup)
-            ldl_weight = 1.0
-            if self.use_ldl and int(epoch_str) < self.ldl_warmup:
-                ldl_weight = 0.0 # Disable LDL during warmup
-            
-            # MoCo weight display (typically fixed at 1.0 if enabled)
-            moco_weight = 0.0
-            if hasattr(self.model, 'args') and hasattr(self.model.args, 'use_moco') and self.model.args.use_moco:
-                moco_weight = 1.0
-                
-            weight_msg = f"--- Epoch {epoch_str}: MI={mi_weight:.4f}, DC={dc_weight:.4f}, LDL_Wt={ldl_weight:.1f}, MoCo={moco_weight:.1f} ---"
-            print(weight_msg)
-            with open(self.log_txt_path, 'a') as f:
-                f.write(weight_msg + '\n')
-
-        context = torch.enable_grad() if is_train else torch.no_grad()
+        pbar = tqdm.tqdm(loader, desc=f"{mode_str} Epoch {epoch_str}")
         
-        # Use tqdm for progress bar
-        pbar = tqdm(loader, desc=f"{mode_str} Epoch {epoch_str}", file=sys.stdout)
-        
-        with context:
-            for i, (images_face, images_body, target) in enumerate(pbar):
-                # DEBUG: Check for NaN in inputs
-                if torch.isnan(images_face).any() or torch.isinf(images_face).any():
-                    print(f"\n[CRITICAL ERROR] NaN/Inf detected in images_face at batch {i}!")
-                    # raise ValueError("Input images_face contains NaN")
-                
-                images_face = images_face.to(self.device)
-                images_body = images_body.to(self.device)
-                target = target.to(self.device)
+        for i, (images_face, images_body, target) in enumerate(pbar):
+            if i == 0:
+                print(f"[DEBUG] Batch 0 Input Shapes: Face={images_face.shape}, Body={images_body.shape}, Target={target.shape}")
+            
+            images_face = images_face.to(self.device)
+            images_body = images_body.to(self.device)
+            target = target.to(self.device)
                 
                 # Apply Mixup
                 if is_train and self.mixup_alpha > 0:

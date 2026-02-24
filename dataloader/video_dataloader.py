@@ -449,8 +449,24 @@ class VideoDataset(data.Dataset):
                 if self.crop_body:
                     body_box = None
                     if matched_video_key and matched_video_key in self.body_boxes:
+                        # Try exact match
                         if frame_key in self.body_boxes[matched_video_key]:
                             body_box = self.body_boxes[matched_video_key][frame_key]
+                        else:
+                            # Nearest Neighbor Lookup for sparse JSON
+                            # Keys are "0.jpg", "5.jpg"...
+                            available_keys = list(self.body_boxes[matched_video_key].keys())
+                            if available_keys:
+                                try:
+                                    # Extract frame indices
+                                    avail_indices = [int(k.split('.')[0]) for k in available_keys]
+                                    # Find nearest
+                                    curr_idx = p
+                                    nearest_idx = min(avail_indices, key=lambda x: abs(x - curr_idx))
+                                    nearest_key = f"{nearest_idx}.jpg"
+                                    body_box = self.body_boxes[matched_video_key][nearest_key]
+                                except:
+                                    pass # Fallback to None (Full Image)
                     
                     if body_box is not None:
                         left, upper, right, lower = body_box
