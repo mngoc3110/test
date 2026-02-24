@@ -338,6 +338,18 @@ class VideoDataset(data.Dataset):
         # Clamp indices to be valid
         indices = np.clip(indices, 0, num_real_frames - 1)
         
+        frames_dict = {}
+        if is_video_file:
+            wanted_indices = set(indices.tolist())
+            max_wanted = max(wanted_indices) if wanted_indices else 0
+            for idx in range(max_wanted + 1):
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                if idx in wanted_indices:
+                    img_cv_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frames_dict[idx] = Image.fromarray(img_cv_rgb)
+        
         images = list()
         images_face = list()
         
@@ -349,14 +361,14 @@ class VideoDataset(data.Dataset):
                 
                 # 1. Read Image
                 if is_video_file:
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, p)
-                    ret, frame = cap.read()
-                    if ret:
-                        img_cv_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        img_pil = Image.fromarray(img_cv_rgb)
+                    if p in frames_dict:
+                        img_pil = frames_dict[p].copy()
                     else:
-                        # Failed to read frame, use black image
-                        img_pil = Image.new('RGB', (self.image_size, self.image_size))
+                        if frames_dict:
+                            nearest_p = min(frames_dict.keys(), key=lambda k: abs(k - p))
+                            img_pil = frames_dict[nearest_p].copy()
+                        else:
+                            img_pil = Image.new('RGB', (self.image_size, self.image_size))
                 else:
                     img_path = video_frames_path[p]
                     try:

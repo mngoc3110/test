@@ -1,5 +1,5 @@
 #!/bin/bash
-# CAER TRAINING - KAGGLE PATHS + SUBSET (30% Data)
+# CAER TRAINING - KAGGLE PATHS + SUBSET (30% Data) - QUICK TEST B/32
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export FFREPORT=file=/dev/null:level=24
 
@@ -15,10 +15,10 @@ fi
 
 python main.py \
   --mode train \
-  --exper-name CAER-Kaggle-Subset \
+  --exper-name CAER-Kaggle-Subset-TestB32 \
   --dataset CAER \
   --gpu 0 \
-  --epochs 30 \
+  --epochs 2 \
   --batch-size 4 \
   --accumulation-steps 8 \
   --optimizer AdamW \
@@ -28,19 +28,19 @@ python main.py \
   --lr-prompt-learner 3e-4 \
   --lr-adapter 1e-4 \
   --weight-decay 0.05 \
-  --milestones 15 25 \
+  --milestones 1 2 \
   --gamma 0.1 \
   --temporal-layers 1 \
   --num-segments 16 \
   --duration 1 \
   --image-size 224 \
   --seed 42 \
-  --print-freq 200 \
+  --print-freq 50 \
   --root-dir "$DATA_ROOT" \
   --train-annotation "$SUBSET_PATH" \
   --val-annotation "$DATA_ROOT/validation.txt" \
   --test-annotation "$DATA_ROOT/test.txt" \
-  --clip-path ViT-B/16 \
+  --clip-path ViT-B/32 \
   --bounding-box-face "$DATA_ROOT/face_boxes_mediapipe.json" \
   --bounding-box-body dummy_boxes.json \
   --text-type prompt_ensemble \
@@ -50,8 +50,8 @@ python main.py \
   --load_and_tune_prompt_learner True \
   --loss-type ldam \
   --lambda_dc 0.1 \
-  --mi-warmup 5 \
-  --dc-warmup 5 \
+  --mi-warmup 1 \
+  --dc-warmup 1 \
   --lambda_mi 0.1 \
   --use-amp \
   --use-weighted-sampler \

@@ -234,9 +234,12 @@ class GenerateModel(nn.Module):
             # Normalize again just in case (optional but safe) - Robust version
             text_features = text_features / (text_features.norm(dim=-1, keepdim=True) + 1e-6)
             
-            # Compute logits per prompt: (B, D) @ (D, P, C) -> (B, P, C)
+            # Compute logits per prompt: (B, D) @ (C, P, D) -> (B, C, P)
             # Note: We use einsum for clarity with batch and ensemble dimensions
             logits = torch.einsum('bd,cpd->bcp', video_features, text_features)
+            
+            # Print shape for debugging
+            # print(f"DEBUG: logits shape: {logits.shape}, expected: (B, C, P)")
             
             # Average the logits across the prompts for each class
             output = torch.mean(logits, dim=2) / self.args.temperature
