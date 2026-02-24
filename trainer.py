@@ -90,8 +90,11 @@ class Trainer:
         else:
             self.model.eval()
 
-        losses = AverageMeter()
-        war_meter = AverageMeter()
+        losses = AverageMeter('Loss', ':.4e')
+        mi_losses = AverageMeter('MI Loss', ':.4e')
+        dc_losses = AverageMeter('DC Loss', ':.4e')
+        moco_losses = AverageMeter('MoCo Loss', ':.4e')
+        war_meter = AverageMeter('WAR', ':6.2f')
         
         all_preds_list = []
         all_targets_list = []
