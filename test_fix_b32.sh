@@ -4,7 +4,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export FFREPORT=file=/dev/null:level=24
 
 # Thiết lập đường dẫn Kaggle (Dựa trên log của bạn)
-DATA_ROOT="/kaggle/input/processed-caer-video-dataset"
+DATA_ROOT="./CAER_Video"
 SUBSET_PATH="./CAER_Video/train_subset.txt"
 
 # Kiểm tra file subset có tồn tại không (do mới pull từ git)
@@ -17,7 +17,7 @@ python main.py \
   --mode train \
   --exper-name CAER-Kaggle-Subset-TestB32 \
   --dataset CAER \
-  --gpu 0 \
+  --gpu mps \
   --epochs 2 \
   --batch-size 4 \
   --accumulation-steps 8 \
@@ -58,4 +58,4 @@ python main.py \
   --crop-body \
   --grad-clip 1.0 \
   --mixup-alpha 0.0 \
-  --label-smoothing 0.1 | grep -E "Epoch|UAR|WAR|Loss" --line-buffered
+  --label-smoothing 0.1 | grep -E "Epoch|UAR|WAR|Loss|DEBUG|Targets|Logits|CE/LDL|MI Loss|DC Loss|BBOX" --line-buffered

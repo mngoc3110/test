@@ -114,6 +114,9 @@ class VideoDataset(data.Dataset):
         self.crop_body = crop_body
         self.root_dir = root_dir
         
+        # Bbox hit stats
+        self.stats = {'face_box_hit': 0, 'haar_hit': 0, 'center_crop': 0, 'total': 0}
+        
         # Initialize OpenCV Face Detector (Haar Cascade)
         # This is a fallback for datasets like CAER which don't have bounding boxes provided.
         # We store the path and load lazily to avoid pickling errors with DataLoader workers.
@@ -186,6 +189,7 @@ class VideoDataset(data.Dataset):
                     faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
                     
                     if len(faces) > 0:
+                        self.stats['haar_hit'] += 1
                         # Strategy: Center-Weighted Selection
                         # Prioritize faces that are Large AND Central.
                         # Score = Area - (Penalty * Distance_to_Center)
@@ -220,11 +224,18 @@ class VideoDataset(data.Dataset):
                         
                         return img.crop((left, upper, right, lower))
                 
-                # FALLBACK: Return original image instead of black image if no face detected
-                # This helps prevent information loss in Test set
-                return img
-            return img
+                # FALLBACK: Return center crop instead of full image if no face detected
+                self.stats['center_crop'] += 1
+                w, h = img.size
+                s = int(min(w, h) * 0.6)
+                return img.crop(((w-s)//2, (h-s)//2, (w+s)//2, (h+s)//2))
+            
+            self.stats['center_crop'] += 1
+            w, h = img.size
+            s = int(min(w, h) * 0.6)
+            return img.crop(((w-s)//2, (h-s)//2, (w+s)//2, (h+s)//2))
         else:
+            self.stats['face_box_hit'] += 1
             left, upper, right, lower = box
             left = int(left)
             upper = int(upper)
@@ -356,6 +367,14 @@ class VideoDataset(data.Dataset):
         for seg_ind in indices:
             p = int(seg_ind)
             for i in range(self.duration):
+                self.stats['total'] += 1
+                if self.stats['total'] % 1000 == 0:
+                    total = self.stats['total']
+                    face_box = self.stats['face_box_hit']
+                    haar = self.stats['haar_hit']
+                    center = self.stats['center_crop']
+                    print(f"\n[BBOX STATS] Total: {total} | Box: {face_box} ({face_box/total*100:.1f}%) | Haar: {haar} ({haar/total*100:.1f}%) | Center: {center} ({center/total*100:.1f}%)")
+
                 img_pil = None
                 box = None
                 
@@ -405,8 +424,11 @@ class VideoDataset(data.Dataset):
                             break
                 
                 # 3. Retrieve Box
-                if matched_video_key and frame_key in self.boxs[matched_video_key]:
-                    box = self.boxs[matched_video_key][frame_key]
+                if matched_video_key:
+                    for fk in [f"{p}.jpg", f"{p-1}.jpg", f"{p+1}.jpg", f"{p-2}.jpg", f"{p+2}.jpg", f"{p:06d}.jpg", f"{p+1:06d}.jpg", f"{p-1:06d}.jpg"]:
+                        if fk in self.boxs.get(matched_video_key, {}):
+                            box = self.boxs[matched_video_key][fk]
+                            break
                 
                 # Debug logging for missing boxes (only once per video to avoid spam)
                 if box is None and i == 0 and p == indices[0]: 

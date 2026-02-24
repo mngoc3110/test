@@ -87,7 +87,7 @@ class Trainer:
         if is_train:
             self.model.train()
             mode_str = "Train"
-            self.optimizer.zero_grad() # Initialize gradients
+            self.optimizer.zero_grad(set_to_none=True) # Initialize gradients
         else:
             self.model.eval()
             mode_str = "Valid"
@@ -197,6 +197,12 @@ class Trainer:
                         print(f"  Logits (first 2): {logits_np}")
                         print(f"  Targets (first 2): {target[:2].detach().cpu().numpy()}")
                         print(f"  CE/LDL Loss: {classification_loss.item():.6f}")
+                        if self.mi_criterion is not None:
+                            mi_val = self.mi_criterion(processed_learnable_text_features, hand_crafted_text_features)
+                            print(f"  MI Loss: {mi_val.item():.6f}")
+                        if self.dc_criterion is not None:
+                            dc_val = self.dc_criterion(processed_learnable_text_features)
+                            print(f"  DC Loss: {dc_val.item():.6f}")
                         if hasattr(self.model, 'args') and hasattr(self.model.args, 'temperature'):
                              print(f"  Model Temperature: {self.model.args.temperature}")
 

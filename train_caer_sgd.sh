@@ -1,0 +1,50 @@
+#!/bin/bash
+# CAER TRAINING - SGD STRATEGY (High LR + Momentum + Strong Margin)
+
+python main.py \
+  --mode train \
+  --exper-name CAER-SGD-Strategy \
+  --dataset CAER \
+  --gpu mps \
+  --epochs 40 \
+  --batch-size 4 \
+  --accumulation-steps 8 \
+  --optimizer SGD \
+  --scheduler multistep \
+  --lr 0.002 \
+  --lr-image-encoder 1e-5 \
+  --lr-prompt-learner 0.005 \
+  --lr-adapter 0.005 \
+  --weight-decay 0.0005 \
+  --momentum 0.9 \
+  --milestones 20 30 \
+  --gamma 0.1 \
+  --temporal-layers 1 \
+  --num-segments 16 \
+  --duration 1 \
+  --image-size 224 \
+  --seed 42 \
+  --print-freq 500 \
+  --root-dir ./CAER_Video \
+  --train-annotation ./CAER_Video/train.txt \
+  --val-annotation ./CAER_Video/validation.txt \
+  --test-annotation ./CAER_Video/test.txt \
+  --clip-path ViT-B/16 \
+  --bounding-box-face ./CAER_Video/face_boxes_mediapipe.json \
+  --bounding-box-body dummy_boxes.json \
+  --text-type prompt_ensemble \
+  --contexts-number 8 \
+  --class-token-position end \
+  --class-specific-contexts True \
+  --load_and_tune_prompt_learner True \
+  --loss-type ldam \
+  --ldam-max-m 0.6 \
+  --lambda_dc 0.1 \
+  --mi-warmup 5 \
+  --dc-warmup 5 \
+  --lambda_mi 0.1 \
+  --use-weighted-sampler \
+  --crop-body \
+  --grad-clip 1.0 \
+  --mixup-alpha 0.0 \
+  --label-smoothing 0.1 
