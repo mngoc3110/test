@@ -25,7 +25,7 @@ python main.py \
   --scheduler multistep \
   --lr 3e-5 \
   --lr-image-encoder 1e-6 \
-  --lr-prompt-learner 3e-4 \
+  --lr-prompt-learner 5e-5 \
   --lr-adapter 1e-4 \
   --weight-decay 0.05 \
   --milestones 15 25 \
@@ -54,7 +54,6 @@ python main.py \
   --dc-warmup 5 \
   --lambda_mi 0.1 \
   --use-amp \
-  --use-weighted-sampler \
   --crop-body \
   --grad-clip 1.0 \
   --mixup-alpha 0.0 \
