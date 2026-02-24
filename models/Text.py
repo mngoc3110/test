@@ -284,13 +284,13 @@ prompt_ensemble_sfer = [
 class_names_caer = ['Anger', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
 
 class_names_with_context_caer = [
-    "A person shows anger.",
-    "A person shows disgust.",
-    "A person shows fear.",
-    "A person shows happiness.",
-    "A person shows neutrality.",
-    "A person shows sadness.",
-    "A person shows surprise."
+    "A scene from a TV show of a person showing anger.",
+    "A scene from a TV show of a person showing disgust.",
+    "A scene from a TV show of a person showing fear.",
+    "A scene from a TV show of a person showing happiness.",
+    "A scene from a TV show of a person showing neutrality.",
+    "A scene from a TV show of a person showing sadness.",
+    "A scene from a TV show of a person showing surprise."
 ]
 
 class_descriptor_caer = [
@@ -305,39 +305,46 @@ class_descriptor_caer = [
 
 prompt_ensemble_caer = [
     [ # Anger
-        "A photo of a person showing anger.",
-        "Furrowed eyebrows, narrow eyes, tightened lips, and flared nostrils.",
-        "Leaning forward, tense stance, fists clenched, or hand pointing."
+        "A scene from a TV show of a person feeling anger.",
+        "A movie scene expressing anger with furrowed eyebrows and narrow eyes.",
+        "A dramatic scene showing an angry facial expression.",
+        "A television scene where someone feels angry."
     ],
     [ # Disgust
-        "A photo of a person showing disgust.",
-        "A wrinkled nose, lowered eyebrows, a tightened mouth, and narrow eyes.",
-        "Slight step back, body angled away, hand raised or shielding face."
+        "A scene from a TV show of a person feeling disgust.",
+        "A movie scene expressing disgust with a wrinkled nose and tightened mouth.",
+        "A dramatic scene showing a disgusted facial expression.",
+        "A television scene where someone feels disgusted."
     ],
     [ # Fear
-        "A photo of a person showing fear.",
-        "Raised eyebrows, parted lips, a furrowed brow, and a retracted chin.",
-        "Hands close to chest or tightly together, small, cautious steps backward."
+        "A scene from a TV show of a person feeling fear.",
+        "A movie scene expressing fear with wide eyes and raised eyebrows.",
+        "A dramatic scene showing a fearful facial expression.",
+        "A television scene where someone feels terrified."
     ],
     [ # Happy
-        "A photo of a person showing happiness.",
-        "A smiling mouth, raised cheeks, wrinkled eyes, and arched eyebrows.",
-        "Leaning in toward the other person, quick, cheerful movements."
+        "A scene from a TV show of a person feeling happiness.",
+        "A movie scene expressing happiness with a smiling mouth and raised cheeks.",
+        "A dramatic scene showing a happy facial expression.",
+        "A television scene where someone feels joyful."
     ],
     [ # Neutral
-        "A photo of a person showing a neutral expression.",
-        "Relaxed facial muscles, a straight mouth, a smooth forehead, and unremarkable eyebrows.",
-        "Relaxed posture, open stance, steady, calm eye contact."
+        "A scene from a TV show of a person showing neutrality.",
+        "A movie scene expressing a neutral state with relaxed facial muscles.",
+        "A dramatic scene showing a calm, emotionless facial expression.",
+        "A television scene where someone feels neutral and calm."
     ],
     [ # Sad
-        "A photo of a person showing sadness.",
-        "Tears, a downward-turned mouth, drooping upper eyelids, and a wrinkled forehead.",
-        "Head down, avoiding eye contact, slow, withdrawn movements."
+        "A scene from a TV show of a person feeling sadness.",
+        "A movie scene expressing sadness with a downward-turned mouth and drooping eyelids.",
+        "A dramatic scene showing a sad facial expression.",
+        "A television scene where someone feels sorrowful."
     ],
     [ # Surprise
-        "A photo of a person showing surprise.",
-        "Widened eyes, an open mouth, raised eyebrows, and a frozen expression.",
-        "Sudden stillness, widened eyes on the other person, hands raised or paused mid-motion."
+        "A scene from a TV show of a person feeling surprise.",
+        "A movie scene expressing surprise with widened eyes and an open mouth.",
+        "A dramatic scene showing a surprised facial expression.",
+        "A television scene where someone feels shocked."
     ]
 ]
 

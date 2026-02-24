@@ -1,10 +1,10 @@
 #!/bin/bash
-# CAER TRAINING - TRUE BASELINE
-# Goal: Reproduce CAER paper exactly (ViT-B/32, Cross-Entropy, fixed text encoder)
+# CAER TRAINING - BASELINE B (No Prompt Learning)
+# ViT-B/32 + CE Loss + Prompt Learner OFF + Text Ensemble + No MI/DC
 
 python main.py \
   --mode train \
-  --exper-name CAER-Baseline \
+  --exper-name CAER-Baseline-B-Prompt-OFF \
   --dataset CAER \
   --gpu mps \
   --epochs 40 \
@@ -26,10 +26,11 @@ python main.py \
   --test-annotation ./CAER_Video/test.txt \
   --clip-path ViT-B/32 \
   --bounding-box-face ./CAER_Video/face_boxes_mediapipe.json \
-  --text-type class_names_with_context \
+  --text-type prompt_ensemble \
   --load_and_tune_prompt_learner False \
   --loss-type ce \
   --lambda_dc 0.0 \
   --lambda_mi 0.0 \
+  --use-weighted-sampler False \
   --grad-clip 1.0 \
   --mixup-alpha 0.0
