@@ -35,5 +35,6 @@ python main.py \
   --lambda_dc 0.0 \
   --lambda_mi 0.0 \
   --use-weighted-sampler True \
+  --label-smoothing 0.0 \
   --grad-clip 1.0 \
   --mixup-alpha 0.0

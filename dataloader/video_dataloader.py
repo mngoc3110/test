@@ -115,7 +115,7 @@ class VideoDataset(data.Dataset):
         self.root_dir = root_dir
         
         # Bbox hit stats
-        self.stats = {'face_box_hit': 0, 'haar_hit': 0, 'center_crop': 0, 'total': 0}
+        self.stats = {'face_box_hit': 0, 'haar_hit': 0, 'center_crop': 0, 'body_box_hit': 0, 'total': 0}
         
         # Initialize OpenCV Face Detector (Haar Cascade)
         # This is a fallback for datasets like CAER which don't have bounding boxes provided.
@@ -235,7 +235,8 @@ class VideoDataset(data.Dataset):
             s = int(min(w, h) * 0.6)
             return img.crop(((w-s)//2, (h-s)//2, (w+s)//2, (h+s)//2))
         else:
-            self.stats['face_box_hit'] += 1
+            if mode == 'face':
+                self.stats['face_box_hit'] += 1
             left, upper, right, lower = box
             left = int(left)
             upper = int(upper)
@@ -373,7 +374,8 @@ class VideoDataset(data.Dataset):
                     face_box = self.stats['face_box_hit']
                     haar = self.stats['haar_hit']
                     center = self.stats['center_crop']
-                    print(f"\n[BBOX STATS] Total: {total} | Box: {face_box} ({face_box/total*100:.1f}%) | Haar: {haar} ({haar/total*100:.1f}%) | Center: {center} ({center/total*100:.1f}%)")
+                    body_box_count = self.stats['body_box_hit']
+                    print(f"\n[BBOX STATS] Total: {total} | Face: {face_box} ({face_box/total*100:.1f}%) | Body: {body_box_count} ({body_box_count/total*100:.1f}%) | Haar: {haar} | Center: {center}")
 
                 img_pil = None
                 box = None
@@ -469,6 +471,7 @@ class VideoDataset(data.Dataset):
                                     pass # Fallback to None (Full Image)
                     
                     if body_box is not None:
+                        self.stats['body_box_hit'] += 1
                         left, upper, right, lower = body_box
                         # Ensure coordinates are within image bounds
                         left = max(0, left); upper = max(0, upper)
@@ -493,6 +496,7 @@ class VideoDataset(data.Dataset):
                 
                 if p < num_real_frames - 1:
                     p += 1
+
         
         if is_video_file:
             cap.release()
