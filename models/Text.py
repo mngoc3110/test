@@ -293,6 +293,26 @@ class_names_with_context_caer = [
     "A scene from a TV show of a person showing surprise."
 ]
 
+class_descriptor_caer_only_face = [
+    "The face of a person who is angry, with furrowed eyebrows, an intense glare, and a tightened mouth or shouting.",
+    "The face of a person who is disgusted, with a wrinkled nose, raised upper lip, and squinted eyes.",
+    "The face of a person who is fearful, with eyes wide open showing whites, eyebrows raised and pulled together, and mouth slightly open.",
+    "The face of a person who is happy, with a wide smile, raised cheeks, and crinkled eyes showing joy.",
+    "The face of a person who is neutral, with relaxed facial muscles, a straight mouth, and a calm, steady gaze.",
+    "The face of a person who is sad, with drooping eyelids, a downward-turned mouth, and a trembling chin.",
+    "The face of a person who is surprised, with arched eyebrows, wide eyes, and a mouth dropped open in shock."
+]
+
+class_descriptor_caer_only_body = [
+    "The body of an angry person, with a tense posture, clenched fists, and leaning forward aggressively.",
+    "The body of a disgusted person, turning away or pulling back with shoulders hunched.",
+    "The body of a fearful person, with a shrinking posture, hands raised for protection, or shoulders pulled up.",
+    "The body of a happy person, with an open and relaxed posture, light movements, and leaning in towards others.",
+    "The body of a neutral person, with a relaxed, upright posture and steady, natural positioning.",
+    "The body of a sad person, with slumped shoulders, head lowered, and a withdrawn, heavy posture.",
+    "The body of a surprised person, with a sudden frozen posture, hands raised to the face, or leaning back quickly."
+]
+
 class_descriptor_caer = [
     "A person with an angry expression, furrowed brows and tightened lips.",
     "A person with a disgusted expression, nose wrinkled and upper lip raised.",

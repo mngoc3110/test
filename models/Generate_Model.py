@@ -1,7 +1,7 @@
 from torch import nn
 from models.Temporal_Model import *
 from models.Prompt_Learner import *
-from models.Text import class_descriptor_5_only_face
+from models.Text import class_descriptor_5_only_face, class_descriptor_caer_only_face
 from models.Adapter import Adapter
 from clip import clip
 import copy
@@ -34,6 +34,8 @@ class GenerateModel(nn.Module):
         # For MI Loss
         if args.dataset == "RAER":
             hand_crafted_prompts = class_descriptor_5_only_face
+        elif args.dataset == "CAER" or args.dataset == "CAER-S":
+            hand_crafted_prompts = class_descriptor_caer_only_face
         elif args.dataset == "CK+":
             from models.Text import class_descriptor_ckplus
             hand_crafted_prompts = class_descriptor_ckplus
